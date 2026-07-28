@@ -269,8 +269,9 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
     }
 
     const hasEmail = formData.email.trim().length > 0;
+    // Empty until the user types: the dial code lives in the country selector.
     const phoneDigits = formData.phone.replace(/\D/g, '');
-    const hasPhone = phoneDigits.length >= 7;
+    const hasPhone = phoneDigits.length > 0;
 
     if (!hasEmail && !hasPhone) {
       errors.email = t('sales.emailOrPhoneRequired') || 'Email or phone required';

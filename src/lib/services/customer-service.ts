@@ -60,24 +60,18 @@ export interface CustomerUpdateResponse {
 // ============================================================================
 
 /**
- * Minimum digits that count as a real phone number.
+ * Reduce a phone field to the digits the backend wants, or `undefined` when the
+ * field is blank. `undefined` keys are dropped by `JSON.stringify`, so a phone
+ * the user never entered is not sent at all — the backend answers PHONE_EXISTS
+ * if it receives a value that any other contact already happens to hold.
  *
- * `PhoneInputWithCountry` seeds its field with the selected country's dial code
- * (e.g. "+254"), so an untouched input still yields digits. Anything this short
- * is a bare dial code, not a number the user typed.
- */
-const MIN_PHONE_DIGITS = 7;
-
-/**
- * Normalise a phone field for the backend, returning `undefined` when the user
- * never actually entered a number. `undefined` keys are dropped by
- * `JSON.stringify`, so a blank field is never sent at all — the backend rejects
- * contact creation with PHONE_EXISTS if it receives a bare dial code that some
- * other contact already happens to hold.
+ * Whether a number was entered is decided by `PhoneInputWithCountry`, which
+ * reports '' for an untouched field; there is deliberately no length threshold
+ * here, since valid number lengths differ by country.
  */
 export function toBackendPhone(phone: string | undefined): string | undefined {
   const digits = (phone || '').replace(/\D/g, '');
-  return digits.length >= MIN_PHONE_DIGITS ? digits : undefined;
+  return digits || undefined;
 }
 
 function mapContact(c: OdooContact): ExistingCustomer {

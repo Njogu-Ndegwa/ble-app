@@ -1259,11 +1259,10 @@ export default function SalesFlow({
     // Email or Phone validation - at least one is required
     const hasEmail = formData.email.trim().length > 0;
     
-    // Phone field may contain country dial code (e.g., "254" for Kenya) even when user hasn't entered anything
-    // A valid phone number with dial code should have at least 7+ digits (dial code + local number)
-    // We check for 7+ digits to distinguish between "just dial code" and "actual phone number"
-    const phoneDigits = formData.phone.replace(/\D/g, ''); // Extract only digits
-    const hasPhone = phoneDigits.length >= 7; // At least 7 digits means user entered something beyond dial code
+    // PhoneInputWithCountry keeps the dial code in the country selector, so the
+    // value is empty until the user actually types a number.
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    const hasPhone = phoneDigits.length > 0;
     
     if (!hasEmail && !hasPhone) {
       // Show error on both fields so it displays in the combined field
@@ -1306,15 +1305,12 @@ export default function SalesFlow({
         console.warn('No employee token found');
       }
 
-      // Phone number is already in E.164 format without + prefix from PhoneInputWithCountry
-      // Use same 7-digit minimum as validation to avoid sending bare dial codes (e.g. "254")
-      const rawPhoneDigits = formData.phone.replace(/\D/g, '');
-      const phoneNumber = rawPhoneDigits.length >= 7 ? rawPhoneDigits : '';
-
+      // Phone number is already in E.164 format without + prefix from
+      // PhoneInputWithCountry, which reports '' when nothing was entered.
       const customerData = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email.trim(),
-        phone: phoneNumber,
+        phone: formData.phone,
         street: formData.street,
         city: formData.city,
         zip: formData.zip,

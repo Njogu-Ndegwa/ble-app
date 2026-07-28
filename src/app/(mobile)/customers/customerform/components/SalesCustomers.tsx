@@ -238,8 +238,9 @@ export default function SalesCustomers() {
     if (!formData.lastName.trim()) errors.lastName = t('sales.lastNameRequired') || 'Last name is required';
 
     const hasEmail = formData.email.trim().length > 0;
+    // Empty until the user types: the dial code lives in the country selector.
     const phoneDigits = formData.phone.replace(/\D/g, '');
-    const hasPhone = phoneDigits.length >= 7;
+    const hasPhone = phoneDigits.length > 0;
 
     if (!hasEmail && !hasPhone) {
       errors.email = t('sales.emailOrPhoneRequired') || 'Email or phone required';
@@ -270,11 +271,10 @@ export default function SalesCustomers() {
 
     try {
       const token = getSalesRoleToken() || '';
-      const rawPhoneDigits = formData.phone.replace(/\D/g, '');
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email.trim(),
-        phone: rawPhoneDigits.length >= 7 ? rawPhoneDigits : '',
+        phone: formData.phone,
         street: formData.street.trim(),
         city: formData.city.trim(),
         zip: formData.zip.trim(),

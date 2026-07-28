@@ -126,8 +126,19 @@ export default function PhoneInputWithCountry({
     defaultCountry: defaultCountryCode,
     value: displayValue,
     countries: defaultCountries,
-    forceDialCode: true,
+    // Keep the dial code in the country selector button only, never in the text
+    // input. The button already renders "+{dialCode}", so `forceDialCode` was
+    // showing it twice AND leaving "+254" sitting in an input the user never
+    // touched — which callers then read back as a real phone number.
+    disableDialCodeAndPrefix: true,
     onChange: (data) => {
+      // `data.phone` always re-attaches the selected country's dial code, so it
+      // reads "+254" even for an untouched field. `data.inputValue` is only what
+      // the user actually typed, so that is what decides whether we have a number.
+      if (!data.inputValue.trim()) {
+        onChange('');
+        return;
+      }
       // Remove the + prefix for backend compatibility
       const valueWithoutPlus = data.phone.startsWith('+') ? data.phone.slice(1) : data.phone;
       onChange(valueWithoutPlus);
