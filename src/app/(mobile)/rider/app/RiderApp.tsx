@@ -760,12 +760,13 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
       const energyRemaining = Math.round((energyQuota - energyUsed) * 100) / 100; // Round to 2dp
       const energyValue = Math.round(energyRemaining * energyUnitPrice); // Monetary value
 
-      // Currency for the rider's balance. Prefer the plan's own currency over
-      // the contract terms: common_terms is a shared terms document that can
-      // belong to a different region than the customer's plan, so a Kenyan
-      // rider attached to Togo terms read back "XOF" while Odoo prices their
-      // plan — and the plan record itself — in KES.
-      const billingCurrency = service_plan_data?.currency || common_terms?.billingCurrency || '';
+      // The customer's plan is the single source of currency. common_terms is
+      // deliberately NOT consulted: it is a shared contract-terms document that
+      // can belong to a different region than the plan (a Kenyan rider attached
+      // to Togo terms reads back "XOF"), so mixing the two put two different
+      // currencies on one screen. Odoo prices these plans in the same currency
+      // the plan record carries, so this keeps the whole app on one value.
+      const billingCurrency = service_plan_data?.currency || '';
 
       // Log account balance calculation details
       console.warn('[RIDER] ðŸ’° ACCOUNT BALANCE CALCULATION:', {

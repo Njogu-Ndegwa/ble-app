@@ -233,11 +233,12 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     // Determine customer type
     const customerType: 'first-time' | 'returning' = batteryFleet?.current_asset ? 'returning' : 'first-time';
 
-    // Billing currency: prefer the customer's own plan over the contract terms.
-    // common_terms is a shared terms document that can belong to a different
-    // region than the plan — a Kenyan customer attached to Togo terms reads
-    // back "XOF" while both Odoo and the plan record price them in KES.
-    const billingCurrency = servicePlanData?.currency || commonTerms?.billingCurrency || PAYMENT.defaultCurrency;
+    // The customer's plan is the single source of currency. common_terms is
+    // deliberately NOT consulted: it is a shared contract-terms document that
+    // can belong to a different region than the plan (a Kenyan customer
+    // attached to Togo terms reads back "XOF"), so mixing the two put two
+    // different currencies on one screen.
+    const billingCurrency = servicePlanData?.currency || PAYMENT.defaultCurrency;
     
     // Get rate from energy service - NO default fallback for Sales workflow
     // If energy service is not found, rate will be 0 and Sales flow will require manual retry
