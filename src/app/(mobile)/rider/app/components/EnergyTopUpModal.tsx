@@ -266,7 +266,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
 
       if (totalPaid < Math.floor(selectedPlan.price) && remainingToPay > 0) {
         // Same rule as the price displays: quote Odoo's currency for the product.
-        const cur = selectedPlan.currencySymbol || selectedPlan.currencyName || currency || '';
+        const cur = selectedPlan.currencyName || selectedPlan.currencySymbol || currency || '';
         setSubmitError(
           `Insufficient payment: ${cur} ${totalPaid.toLocaleString()} paid of ${cur} ${Math.floor(selectedPlan.price).toLocaleString()}. Remaining: ${cur} ${remainingToPay.toLocaleString()}`
         );
@@ -358,9 +358,13 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
 
   // Currency to show against a price. Odoo prices the product, so Odoo's
   // currency is the one the rider is actually charged in; the `currency` prop
-  // (ABS contract terms) is only a fallback for products that carry none.
+  // is only a fallback for products that carry none.
+  //
+  // Use Odoo's currency *code* ("KES") rather than its symbol ("KSh"): the
+  // balance and transactions render the plan's code, so preferring the symbol
+  // would put "KSh 249" beside "KES 1,595" for one and the same currency.
   const planCurrency = (p?: PlanOption | null): string =>
-    p?.currencySymbol || p?.currencyName || currency || '';
+    p?.currencyName || p?.currencySymbol || currency || '';
 
   const energyKwh = energyConfig?.initialQuota ?? null;
 

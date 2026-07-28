@@ -83,6 +83,10 @@ export default function RiderPlans({
           default_code: p.default_code || `P-${p.id}`,
           suggested_billing_frequency: p.pu_category || undefined,
           category: p.category_name || p.pu_category || undefined,
+          // Price in the currency Odoo prices the product in, same as the
+          // top-up sheet — otherwise this page renders "KES 249" next to the
+          // sheet's "KSh 249" for the very same plan.
+          currency: p.currency_name || p.currencySymbol || undefined,
         }));
         setFetchedPlans(list);
       } catch (err: any) {
@@ -232,7 +236,7 @@ export default function RiderPlans({
                 className="list-card-badge--info"
                 style={{ fontSize: 13, padding: "6px 10px" }}
               >
-                {defaultCurrency ? `${defaultCurrency} ` : ''}{p.price.toLocaleString()}
+                {(p.currency || defaultCurrency) ? `${p.currency || defaultCurrency} ` : ''}{p.price.toLocaleString()}
               </span>
             </div>
           </div>
