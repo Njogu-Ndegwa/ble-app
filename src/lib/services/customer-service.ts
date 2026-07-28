@@ -59,6 +59,27 @@ export interface CustomerUpdateResponse {
 // Mapping helper
 // ============================================================================
 
+/**
+ * Minimum digits that count as a real phone number.
+ *
+ * `PhoneInputWithCountry` seeds its field with the selected country's dial code
+ * (e.g. "+254"), so an untouched input still yields digits. Anything this short
+ * is a bare dial code, not a number the user typed.
+ */
+const MIN_PHONE_DIGITS = 7;
+
+/**
+ * Normalise a phone field for the backend, returning `undefined` when the user
+ * never actually entered a number. `undefined` keys are dropped by
+ * `JSON.stringify`, so a blank field is never sent at all — the backend rejects
+ * contact creation with PHONE_EXISTS if it receives a bare dial code that some
+ * other contact already happens to hold.
+ */
+export function toBackendPhone(phone: string | undefined): string | undefined {
+  const digits = (phone || '').replace(/\D/g, '');
+  return digits.length >= MIN_PHONE_DIGITS ? digits : undefined;
+}
+
 function mapContact(c: OdooContact): ExistingCustomer {
   return {
     id: c.id,
@@ -161,7 +182,9 @@ export async function updateCustomer(
   const payload: ContactWritePayload = {};
   if (data.name !== undefined) payload.name = data.name;
   if (data.email !== undefined) payload.email = data.email;
-  if (data.phone !== undefined) payload.phone = data.phone;
+  // Only write a phone the user actually entered; a bare dial code is not one.
+  const phone = toBackendPhone(data.phone);
+  if (phone !== undefined) payload.phone = phone;
   if (data.street !== undefined) payload.street = data.street;
   if (data.city !== undefined) payload.city = data.city;
   if (data.zip !== undefined) payload.zip = data.zip;
@@ -187,7 +210,7 @@ export async function createCustomer(
   const payload: ContactWritePayload = {
     name: data.name,
     email: data.email || undefined,
-    phone: data.phone || undefined,
+    phone: toBackendPhone(data.phone),
     street: data.street || undefined,
     city: data.city || undefined,
     zip: data.zip || undefined,

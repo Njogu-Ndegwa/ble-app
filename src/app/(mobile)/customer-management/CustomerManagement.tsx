@@ -308,7 +308,9 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
         name,
         isCompany: formData.isCompany,
         email: formData.email.trim(),
-        phone: formData.phone.replace(/\D/g, ''),
+        // Left raw on purpose: customer-service drops a phone the user never
+        // entered (the input is pre-seeded with the country dial code).
+        phone: formData.phone,
         street: formData.street.trim(),
         city: formData.city.trim(),
         zip: formData.zip.trim(),
