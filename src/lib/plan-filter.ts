@@ -10,6 +10,11 @@
  * canonical `templateId` (`x_template_id` in Odoo); `name` is a fallback
  * because old products may not have a template id populated.
  *
+ * `norm()` strips whitespace but NOT punctuation, so hyphenated backend
+ * names need their own pattern: INOVA Mali's package is `S-6`, which does
+ * not substring-match `S6` (found the hard way — an unmatched package
+ * falls through to the unfiltered list with no warning).
+ *
  * The three product families map 1:1 onto the three battery prefixes:
  *   S6/M3            → B30
  *   E-3H / E-3 Plus  → B45
@@ -33,7 +38,7 @@ interface ProductServiceMapping {
 
 export const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
   {
-    productPatterns: ['S6', 'M3'],
+    productPatterns: ['S6', 'S-6', 'M3'],
     servicePatterns: ['B30-'],
   },
   {
