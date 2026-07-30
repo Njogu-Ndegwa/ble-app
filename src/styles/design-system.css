@@ -226,6 +226,19 @@
   
   /* Touch target (accessibility) */
   --touch-min: 44px;
+
+  /* -------------------- Layout Widths -------------------- */
+
+  /* Content column caps. All 430px (the phone design width) at base;
+     widened per-breakpoint by src/styles/responsive.css in later phases.
+     Never hardcode max-width in app code — use these via ContentColumn /
+     AppShell (src/components/layout). */
+  --content-narrow: 430px;   /* forms, flows */
+  --content-default: 430px;  /* lists, details */
+  --content-wide: 430px;     /* tables, dashboards */
+
+  /* Desktop navigation rail (>=lg), see responsive.css NAV section */
+  --nav-rail-width: 76px;
 }
 
 

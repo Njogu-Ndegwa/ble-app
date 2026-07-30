@@ -163,6 +163,11 @@ async function captureRoute(page, route, outDir) {
     console.warn(`  ! goto failed for ${route.path}: ${e.message}`)
   }
   await page.addStyleTag({ content: FREEZE_CSS }).catch(() => {})
+  // Dynamic imports + auth gates show .loading-spinner while resolving; wait
+  // it out (bounded — some screens keep a spinner in empty states).
+  await page
+    .waitForFunction(() => !document.querySelector('.loading-spinner'), { timeout: 20000 })
+    .catch(() => {})
   await page.waitForTimeout(route.settleMs ?? 2000)
   // Re-inject in case of client-side re-render replacing <head> styles
   await page.addStyleTag({ content: FREEZE_CSS }).catch(() => {})

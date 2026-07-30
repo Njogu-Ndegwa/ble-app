@@ -361,13 +361,18 @@ export const zIndex = {
 // BREAKPOINT TOKENS
 // ============================================
 
+/**
+ * Mirrors Tailwind's default screens (tailwind.config.ts defines no custom
+ * `screens` key). Media queries can't read CSS vars, so this map is the
+ * JS-side source of truth for useMediaQuery()/useWindowSize() switches.
+ * md = tablet, lg = nav rail + master-detail, xl = desktop.
+ */
 export const breakpoint = {
-  xs: '320px',
-  sm: '480px',
-  md: '640px',
-  lg: '768px',
-  xl: '1024px',
-  '2xl': '1280px',
+  sm: '640px',
+  md: '768px',
+  lg: '1024px',
+  xl: '1280px',
+  '2xl': '1536px',
 } as const;
 
 // ============================================
