@@ -1,0 +1,3 @@
+# Re-capture output and diff artifacts — only visual-baseline/ is versioned
+visual-current/
+visual-smoke/
