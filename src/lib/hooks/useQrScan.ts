@@ -41,6 +41,8 @@ interface UseQrScanResult {
 
 // Reset the trigger if the native scanner never returns a JS callback.
 const SCAN_TIMEOUT_MS = 60000;
+/** Window after firing startQrCodeScan during which repeat taps are double-taps. */
+const SCAN_LAUNCH_DEBOUNCE_MS = 1200;
 
 export function useQrScan({
   onScanned,
@@ -73,17 +75,14 @@ export function useQrScan({
   const scannerAvailable = !!bridge && isBridgeReady;
 
   const startScan = useCallback(() => {
-    if (busyRef.current) {
-      // Debounce genuine double-taps while the native scanner is launching.
-      if (Date.now() - startedAtRef.current < 2500) return;
-      // Older busy state is stale — the native side swallowed the request
-      // (denied permission, launch failure, lost bridge message) and never
-      // called back. A tap can only happen with the scanner off-screen, so
-      // reset and let this tap retry instead of staying dead for the rest
-      // of the safety window.
-      console.info('[useQrScan] Stale scanner busy flag — resetting and retrying');
-      busyRef.current = false;
+    // Only swallow a tap while the native scanner is still coming up. Any later
+    // tap proves the scanner is not on screen, so it must start a new scan. See
+    // ActivatorFlow: gating on busyRef alone ate taps for up to 60s whenever the
+    // native side returned without a callback (e.g. user backed out).
+    if (busyRef.current && Date.now() - startedAtRef.current < SCAN_LAUNCH_DEBOUNCE_MS) {
+      return;
     }
+    busyRef.current = false;
     if (!bridge || !isBridgeReady) {
       cbRef.current.onUnavailable?.();
       return;
@@ -150,6 +149,10 @@ export function useQrScan({
     let pending: ReturnType<typeof setTimeout> | null = null;
     const onVisibility = () => {
       if (document.visibilityState === 'visible' && initiatedRef.current) {
+        // Clear the tap guard at once — visible again means the scanner is gone,
+        // so the next tap must be able to reopen it. Defer only the UI teardown
+        // so an in-flight result callback can land first.
+        busyRef.current = false;
         if (pending) clearTimeout(pending);
         pending = setTimeout(() => {
           pending = null;

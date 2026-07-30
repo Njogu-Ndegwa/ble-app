@@ -61,6 +61,9 @@ declare global {
 
 const ACTIVATOR_STATION = "STATION_001";
 
+/** Window after firing startQrCodeScan during which repeat taps are double-taps. */
+const SCAN_LAUNCH_DEBOUNCE_MS = 1200;
+
 interface ActivatorFlowProps {
   onBack?: () => void;
   onLogout?: () => void;
@@ -518,17 +521,21 @@ export default function ActivatorFlow({
 
   // Start QR code scan
   const startQrCodeScan = useCallback(() => {
-    if (qrScannerBusyRef.current) {
-      // Debounce genuine double-taps while the native scanner is launching.
-      if (Date.now() - scanStartedAtRef.current < 2500) return;
-      // Anything older is a stale busy flag: the native side swallowed the
-      // request (lost bridge message, denied permission, launch failure) and
-      // never called back. If the user can tap the button, the scanner is not
-      // on screen — reset and let this tap retry instead of ignoring taps for
-      // the rest of the 60s safety window ("scanner never opens" reports).
-      console.info('[ActivatorFlow] Stale scanner busy flag — resetting and retrying');
-      qrScannerBusyRef.current = false;
+    // The ONLY reason to swallow a tap is that we just fired a scan request and
+    // the native scanner activity is still coming up. Any later tap proves the
+    // scanner is not on screen (the user could only reach this button with the
+    // webview in front), so it must start a new scan rather than be ignored.
+    //
+    // Gating on qrScannerBusyRef instead used to eat taps for up to 60s: the
+    // native side sends no callback when the user backs out of the scanner, and
+    // the visibility-based recovery below only cleared the flag 500ms after
+    // returning. Tapping inside that window did nothing, with no feedback —
+    // reproduced on-device at 6/12 taps with a 400ms gap, 0/8 at 1100ms. That
+    // is the intermittent "scanner refuses to open" users report.
+    if (qrScannerBusyRef.current && Date.now() - scanStartedAtRef.current < SCAN_LAUNCH_DEBOUNCE_MS) {
+      return;
     }
+    qrScannerBusyRef.current = false;
     if (!bridge || !isBridgeReady || !window.WebViewJavascriptBridge) {
       toast.error(
         t('activator.scannerBridgeNotReady') ||
@@ -554,12 +561,16 @@ export default function ActivatorFlow({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && qrScanInitiatedRef.current) {
+        // Clear the tap guard immediately: we are visible again, so the scanner
+        // is definitively gone and the next tap must be able to reopen it. Only
+        // the UI teardown is deferred, to let a result callback that is already
+        // in flight land first.
+        qrScannerBusyRef.current = false;
         if (pendingTimeout) clearTimeout(pendingTimeout);
         pendingTimeout = setTimeout(() => {
           pendingTimeout = null;
           if (isScannerOpening) {
             console.info('[ActivatorFlow] Resetting scanner UI — returned without QR callback');
-            qrScannerBusyRef.current = false;
             setIsScannerOpening(false);
             scanTypeRef.current = null;
             clearScannerTimeout();
