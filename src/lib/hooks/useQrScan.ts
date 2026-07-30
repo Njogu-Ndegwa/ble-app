@@ -60,6 +60,7 @@ export function useQrScan({
   // Synchronous guards — React state lags a tick behind a tap.
   const busyRef = useRef(false);
   const initiatedRef = useRef(false);
+  const startedAtRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearScanTimeout = useCallback(() => {
@@ -72,13 +73,24 @@ export function useQrScan({
   const scannerAvailable = !!bridge && isBridgeReady;
 
   const startScan = useCallback(() => {
-    if (busyRef.current) return;
+    if (busyRef.current) {
+      // Debounce genuine double-taps while the native scanner is launching.
+      if (Date.now() - startedAtRef.current < 2500) return;
+      // Older busy state is stale — the native side swallowed the request
+      // (denied permission, launch failure, lost bridge message) and never
+      // called back. A tap can only happen with the scanner off-screen, so
+      // reset and let this tap retry instead of staying dead for the rest
+      // of the safety window.
+      console.info('[useQrScan] Stale scanner busy flag — resetting and retrying');
+      busyRef.current = false;
+    }
     if (!bridge || !isBridgeReady) {
       cbRef.current.onUnavailable?.();
       return;
     }
     busyRef.current = true;
     initiatedRef.current = true;
+    startedAtRef.current = Date.now();
     setIsScannerOpening(true);
 
     clearScanTimeout();
