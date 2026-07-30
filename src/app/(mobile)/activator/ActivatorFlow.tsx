@@ -507,6 +507,7 @@ export default function ActivatorFlow({
   const scannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qrScanInitiatedRef = useRef(false);
   const qrScannerBusyRef = useRef(false);
+  const scanStartedAtRef = useRef(0);
 
   const clearScannerTimeout = useCallback(() => {
     if (scannerTimeoutRef.current) {
@@ -517,7 +518,17 @@ export default function ActivatorFlow({
 
   // Start QR code scan
   const startQrCodeScan = useCallback(() => {
-    if (qrScannerBusyRef.current) return;
+    if (qrScannerBusyRef.current) {
+      // Debounce genuine double-taps while the native scanner is launching.
+      if (Date.now() - scanStartedAtRef.current < 2500) return;
+      // Anything older is a stale busy flag: the native side swallowed the
+      // request (lost bridge message, denied permission, launch failure) and
+      // never called back. If the user can tap the button, the scanner is not
+      // on screen — reset and let this tap retry instead of ignoring taps for
+      // the rest of the 60s safety window ("scanner never opens" reports).
+      console.info('[ActivatorFlow] Stale scanner busy flag — resetting and retrying');
+      qrScannerBusyRef.current = false;
+    }
     if (!bridge || !isBridgeReady || !window.WebViewJavascriptBridge) {
       toast.error(
         t('activator.scannerBridgeNotReady') ||
@@ -526,6 +537,7 @@ export default function ActivatorFlow({
       return;
     }
     qrScannerBusyRef.current = true;
+    scanStartedAtRef.current = Date.now();
     setIsScannerOpening(true);
     qrScanInitiatedRef.current = true;
     clearScannerTimeout();
