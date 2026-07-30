@@ -62,7 +62,7 @@ const BleMobileListView: React.FC<BleMobileListViewProps> = ({
 
   return (
     <div style={{ position: 'relative', zIndex: 1 }}>
-      <div className="p-4 max-w-md mx-auto">
+      <div className="p-4 content-col--wide mx-auto">
 
         {/* Optional section title + rescan button */}
         {title && (

@@ -397,12 +397,9 @@ const LocationView: React.FC<LocationViewProps> = ({
                         </div>
                     ) : (
                         <div className="mb-4 relative">
-                            <div 
-                                className="rounded-lg overflow-hidden"
-                                style={{
-                                    height: isFullScreenMap ? 'calc(100vh - 120px)' : '192px',
-                                    width: '100%',
-                                }}
+                            <div
+                                className={`rounded-lg overflow-hidden w-full ${isFullScreenMap ? '' : 'location-map-inline'}`}
+                                style={isFullScreenMap ? { height: 'calc(100vh - 120px)' } : undefined}
                             >
                                 <MapContainer
                                     center={mapCenter || defaultCenter}

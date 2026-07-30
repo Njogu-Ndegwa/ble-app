@@ -138,7 +138,7 @@ const FileUploadPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen bg-gradient-page p-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
@@ -147,7 +147,7 @@ const FileUploadPage = () => {
         </div>
 
         {/* Upload Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+        <div className="bg-bg-secondary border border-border rounded-2xl shadow-lg p-6 mb-6">
           <input
             type="file"
             id="document-upload"
@@ -159,17 +159,17 @@ const FileUploadPage = () => {
           />
           
           <div
-            className="block border-2 border-dashed border-blue-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors active:bg-blue-100"
+            className="block border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-brand hover:bg-bg-elevated transition-colors active:bg-bg-elevated"
             onClick={triggerFileSelect}
           >
             {isUploading ? (
               <div className="flex flex-col items-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                <p className="text-blue-600 font-medium">{t('Uploading files...')}</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mb-4"></div>
+                <p className="text-brand font-medium">{t('Uploading files...')}</p>
               </div>
             ) : (
               <div className="flex flex-col items-center">
-                <Plus className="w-12 h-12 text-blue-500 mb-4" />
+                <Plus className="w-12 h-12 text-brand mb-4" />
                 <p className="text-lg font-medium text-text-primary mb-2">{t('Choose documents to upload')}</p>
                 <p className="text-text-muted mb-2">{t('Tap here to browse your device')}</p>
                 <p className="text-sm text-text-secondary">{t('Supports: PDF, HEX16, DOC, TXT, XLS, and more')}</p>
@@ -180,7 +180,7 @@ const FileUploadPage = () => {
 
         {/* Files List */}
         {files.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="bg-bg-secondary border border-border rounded-2xl shadow-lg p-6">
             <h2 className="text-xl font-semibold text-text-primary mb-4">
               {t('Uploaded Files')} ({files.length})
             </h2>
@@ -199,14 +199,14 @@ const FileUploadPage = () => {
                             type="text"
                             value={newFileName}
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewFileName(e.target.value)}
-                            className="flex-1 px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-base"
+                            className="flex-1 px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent outline-none text-base"
                             onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => handleKeyPress(e, fileItem.id)}
                             placeholder={t('Enter new filename')}
                           />
                           <div className="flex space-x-2">
                             <button
                               onClick={() => saveEdit(fileItem.id)}
-                              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 active:bg-green-700 transition-colors text-sm font-medium min-w-0 touch-manipulation"
+                              className="px-4 py-2 bg-success text-white rounded-lg hover:opacity-90 active:opacity-80 transition-opacity text-sm font-medium min-w-0 touch-manipulation"
                             >
                               {t('Save')}
                             </button>
@@ -235,21 +235,21 @@ const FileUploadPage = () => {
                     <div className="flex items-center space-x-2 sm:ml-4 flex-shrink-0">
                       <button
                         onClick={() => handleDownload(fileItem)}
-                        className="flex-1 sm:flex-none p-3 text-blue-600 hover:bg-blue-100 active:bg-blue-200 rounded-lg transition-colors touch-manipulation"
+                        className="flex-1 sm:flex-none p-3 text-brand hover:bg-bg-elevated active:bg-bg-elevated rounded-lg transition-colors touch-manipulation"
                         title={t('Download')}
                       >
                         <Download className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => startEdit(fileItem)}
-                        className="flex-1 sm:flex-none p-3 text-green-600 hover:bg-green-100 active:bg-green-200 rounded-lg transition-colors touch-manipulation"
+                        className="flex-1 sm:flex-none p-3 text-success hover:bg-bg-elevated active:bg-bg-elevated rounded-lg transition-colors touch-manipulation"
                         title={t('Rename')}
                       >
                         <Edit3 className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDelete(fileItem.id)}
-                        className="flex-1 sm:flex-none p-3 text-red-600 hover:bg-red-100 active:bg-red-200 rounded-lg transition-colors touch-manipulation"
+                        className="flex-1 sm:flex-none p-3 text-error hover:bg-bg-elevated active:bg-bg-elevated rounded-lg transition-colors touch-manipulation"
                         title={t('Delete')}
                       >
                         <Trash2 className="w-5 h-5" />

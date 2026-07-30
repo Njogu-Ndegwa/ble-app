@@ -1020,7 +1020,7 @@ const BleDevicesApp: React.FC = () => {
         }}
       />
 
-      <main className="attendant-main attendant-main-screen">
+      <main className="attendant-main attendant-main-screen attendant-main--wide">
         <div className="attendant-screen-container">
           {currentScreen !== 'profile' ? (
             !selectedDevice ? (

@@ -283,8 +283,53 @@
 }
 
 /* =====================================================
-   FORMS — flow summary grids, input row pairing
+   FORMS — flow columns stay narrow on wide screens
+   (Sales/Attendant/Activator flows are hardware-coupled and deliberately
+   keep their phone structure; they just get a comfortable narrow column
+   instead of the default one.)
    ===================================================== */
+
+@media (min-width: 768px) {
+  /* Flow mains: .sales-main inside a flow container, and the attendant flow
+     main (the non-flow attendant tabs carry .attendant-main-screen). */
+  .sales-flow-container .sales-main,
+  .attendant-container .attendant-main:not(.attendant-main-screen) {
+    max-width: var(--content-narrow);
+  }
+
+  /* Keypad / BLE-devices tool screens opt into the wide column for their
+     service/characteristic tables via this modifier. */
+  .attendant-main--wide {
+    max-width: var(--content-wide);
+  }
+}
+
+/* Inline (non-fullscreen) route-history map: phone height matches the old
+   inline 192px; grows on tablet/desktop where 192px reads as a letterbox. */
+.location-map-inline {
+  height: 192px;
+}
+
+@media (min-width: 768px) {
+  .location-map-inline {
+    height: 320px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .location-map-inline {
+    height: 420px;
+  }
+}
+
+/* Home applet launcher: more columns, same 60px icons, still centered */
+@media (min-width: 768px) {
+  .role-grid {
+    grid-template-columns: repeat(auto-fit, 60px);
+    max-width: 560px;
+    margin: 0 auto;
+  }
+}
 
 /* =====================================================
    SHEETS — bottom sheet → capped + centered at md
@@ -321,3 +366,18 @@
 /* =====================================================
    TIMELINE — flow stepper fan-out at md
    ===================================================== */
+
+@media (min-width: 768px) {
+  /* Steps fan out instead of horizontally scrolling, aligned to the column */
+  .flow-timeline {
+    overflow-x: visible;
+    width: 100%;
+    max-width: var(--content-default);
+    margin: 0 auto;
+  }
+
+  .timeline-track {
+    justify-content: center;
+    min-width: 0;
+  }
+}

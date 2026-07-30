@@ -1,4 +1,4 @@
-// "use client";
+﻿// "use client";
 
 // import React, { useState, useRef, useMemo } from "react";
 // import { useRouter } from "next/navigation";
@@ -769,7 +769,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             ...prev,
             [characteristicUuid]: data.realVal,
           }));
-          // Device read is ground truth — discard any stale user-written value
+          // Device read is ground truth â€” discard any stale user-written value
           setUserWrittenValues((prev) => {
             const next = { ...prev };
             delete next[characteristicUuid];
@@ -897,7 +897,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             }
           }, 2000); // Increased to 2000ms for better reliability with multiple devices
         } else {
-          // Write rejected — remove the optimistically stored value so the
+          // Write rejected â€” remove the optimistically stored value so the
           // display reverts to the real device value and reads work normally
           setUserWrittenValues((prev) => {
             const next = { ...prev };
@@ -957,7 +957,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   );
   const [otaPreselect, setOtaPreselect] = useState<string | null>(null);
 
-  // ── Overview mode (My Devices) ──────────────────────────────────────────
+  // â”€â”€ Overview mode (My Devices) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (mode === 'overview') {
     const attService = attributeList.find(
       (s: any) => s.serviceNameEnum === 'ATT_SERVICE',
@@ -974,19 +974,19 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     const overviewStats: { label: string; value: string; icon: string }[] = [];
 
     const opidVal = getDisplayValue(opidCharacteristic);
-    if (opidVal) overviewStats.push({ label: t('Device ID'), value: String(opidVal), icon: '🔑' });
+    if (opidVal) overviewStats.push({ label: t('Device ID'), value: String(opidVal), icon: 'ðŸ”‘' });
 
     const fwChar = getAttr(attService, 'fwv') ?? getAttr(attService, 'frmv') ?? getAttr(attService, 'fw');
-    if (fwChar) overviewStats.push({ label: t('Firmware'), value: String(fwChar.realVal ?? t('N/A')), icon: '📦' });
+    if (fwChar) overviewStats.push({ label: t('Firmware'), value: String(fwChar.realVal ?? t('N/A')), icon: 'ðŸ“¦' });
 
     const soc = getAttr(stsService, 'soc') ?? getAttr(attService, 'soc');
-    if (soc) overviewStats.push({ label: t('Battery (SoC)'), value: `${soc.realVal ?? t('N/A')} %`, icon: '🔋' });
+    if (soc) overviewStats.push({ label: t('Battery (SoC)'), value: `${soc.realVal ?? t('N/A')} %`, icon: 'ðŸ”‹' });
 
     const volt = getAttr(stsService, 'volt') ?? getAttr(stsService, 'vbat') ?? getAttr(attService, 'volt');
-    if (volt) overviewStats.push({ label: t('Voltage'), value: `${volt.realVal ?? t('N/A')} V`, icon: '⚡' });
+    if (volt) overviewStats.push({ label: t('Voltage'), value: `${volt.realVal ?? t('N/A')} V`, icon: 'âš¡' });
 
     const temp = getAttr(stsService, 'temp') ?? getAttr(attService, 'temp');
-    if (temp) overviewStats.push({ label: t('Temperature'), value: `${temp.realVal ?? t('N/A')} °C`, icon: '🌡️' });
+    if (temp) overviewStats.push({ label: t('Temperature'), value: `${temp.realVal ?? t('N/A')} Â°C`, icon: 'ðŸŒ¡ï¸' });
 
     const isLoading = !!isLoadingService;
 
@@ -1007,7 +1007,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
 
         {/* Device card */}
-        <div className="max-w-md mx-auto px-4 pb-6 space-y-4">
+        <div className="content-col--wide mx-auto px-4 pb-6 space-y-4">
           <div
             className="rounded-2xl p-5 flex items-center gap-4"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
@@ -1019,7 +1019,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                 className="w-20 h-20 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: 'var(--bg-tertiary)' }}
               >
-                <span style={{ fontSize: 32 }}>📡</span>
+                <span style={{ fontSize: 32 }}>ðŸ“¡</span>
               </div>
             )}
             <div className="min-w-0">
@@ -1112,7 +1112,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     );
   }
 
-  // ── Technical mode (All Devices) ────────────────────────────────────────
+  // â”€â”€ Technical mode (All Devices) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 1, color: 'var(--text-primary)' }}>
       <AsciiStringModal
@@ -1138,7 +1138,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         onSuccess={onBack}
         preselectVersion={otaPreselect}
       />
-      <div className="flex flex-col items-center p-6 pb-2 max-w-md mx-auto">
+      <div className="flex flex-col items-center p-6 pb-2 content-col--wide mx-auto">
         <img
           src={device.imageUrl}
           alt={deviceDisplayName}
@@ -1204,7 +1204,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           </div>
         )}
       </div>
-      <div className="border-b max-w-md mx-auto" style={{ borderColor: 'var(--border)' }}>
+      <div className="border-b content-col--wide mx-auto" style={{ borderColor: 'var(--border)' }}>
         <div className="flex justify-between px-1">
           {fixedTabs.map((tab) => {
             const serviceLoaded = tab.serviceNameEnum
@@ -1235,7 +1235,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           })}
         </div>
       </div>
-      <div className="p-4 max-w-md mx-auto">
+      <div className="p-4 content-col--wide mx-auto">
         {isLoadingService === activeTab && (
           <div className="w-full h-1 mb-4 rounded-full overflow-hidden" style={{ background: 'var(--bg-tertiary)' }}>
             <div
