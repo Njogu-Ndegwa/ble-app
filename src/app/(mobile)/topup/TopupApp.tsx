@@ -5,7 +5,7 @@ import {
   getSalesRoleUser,
   type EmployeeUser,
 } from '@/lib/attendant-auth';
-import AppHeader from '@/components/AppHeader';
+import { AppShell } from '@/components/layout';
 import TopupFlow from './TopupFlow';
 
 interface TopupAppProps {
@@ -28,12 +28,8 @@ export default function TopupApp({ onSwitchSA }: TopupAppProps) {
   }, []);
 
   return (
-    <div className="sales-container">
-      <div className="sales-bg-gradient" />
-      <AppHeader showBack onSwitchSA={onSwitchSA} />
-      <main className="sales-main">
-        {employee && <TopupFlow employee={employee} />}
-      </main>
-    </div>
+    <AppShell header={{ showBack: true, onSwitchSA }} width="narrow">
+      {employee && <TopupFlow employee={employee} />}
+    </AppShell>
   );
 }

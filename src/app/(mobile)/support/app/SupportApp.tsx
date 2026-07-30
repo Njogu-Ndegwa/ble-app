@@ -4,7 +4,7 @@ import React, { useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearSalesRoleLogin } from '@/lib/attendant-auth';
 import { clearSalesSession } from '@/lib/sales-session';
-import AppHeader from '@/components/AppHeader';
+import { AppShell } from '@/components/layout';
 import Support from './Support';
 
 interface SupportAppProps {
@@ -33,15 +33,10 @@ export default function SupportApp({ onLogout }: SupportAppProps) {
   }, [onLogout, router]);
 
   return (
-    <div className="sales-container">
-      <div className="sales-bg-gradient" />
-      <AppHeader showBack />
-
-      <main className="sales-main sales-main-screen">
-        <div className="sales-screen-container">
-          <Support onLogout={handleLogout} />
-        </div>
-      </main>
-    </div>
+    <AppShell header={{ showBack: true }} width="default">
+      <div className="sales-screen-container">
+        <Support onLogout={handleLogout} />
+      </div>
+    </AppShell>
   );
 }

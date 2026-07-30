@@ -67,21 +67,17 @@ const AppShell: React.FC<AppShellProps> = ({
     <div className="app-shell-body">
       {background === 'gradient' && <div className="app-shell-bg-gradient" />}
       {header !== false && <AppHeader {...(header ?? {})} />}
-      <main className={`app-shell-main app-shell-main--${width}${nav || bottomBar ? ' app-shell-main--with-bottom' : ''}`}>
+      <main className={`app-shell-main app-shell-main--${width}`}>
         {children}
       </main>
-      {(bottomBar || nav) && (
-        <div className="app-shell-bottom">
-          {bottomBar}
-          {nav && (
-            <BottomNav
-              items={nav.items}
-              currentScreen={nav.currentScreen}
-              onNavigate={nav.onNavigate}
-              className="app-nav-bottom"
-            />
-          )}
-        </div>
+      {bottomBar && <div className="app-shell-bottom">{bottomBar}</div>}
+      {nav && (
+        <BottomNav
+          items={nav.items}
+          currentScreen={nav.currentScreen}
+          onNavigate={nav.onNavigate}
+          className="app-nav-bottom"
+        />
       )}
     </div>
   </div>

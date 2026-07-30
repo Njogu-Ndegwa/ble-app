@@ -175,11 +175,19 @@ async function captureRoute(page, route, outDir) {
   await page.screenshot({ path: join(outDir, `${route.slug}.png`) })
   console.log(`  ✓ ${route.slug}`)
 
-  // Generic tab sweep: click each bottom-nav tab and capture it.
-  const tabs = await page.$$('.bottom-nav-item')
-  for (let i = 0; i < tabs.length; i++) {
+  // Generic tab sweep: click each *visible* nav tab and capture it.
+  // (NavRail duplicates .bottom-nav-item markup; only one variant is visible
+  // per viewport — bottom bar <lg, rail >=lg.)
+  const visibleTabs = async () => {
+    const all = await page.$$('.bottom-nav-item')
+    const vis = []
+    for (const item of all) if (await item.isVisible()) vis.push(item)
+    return vis
+  }
+  const tabCount = (await visibleTabs()).length
+  for (let i = 0; i < tabCount; i++) {
     // Re-query — clicking may re-render the nav
-    const items = await page.$$('.bottom-nav-item')
+    const items = await visibleTabs()
     if (!items[i]) continue
     const label = sanitize((await items[i].getAttribute('aria-label')) ?? `tab${i}`)
     try {

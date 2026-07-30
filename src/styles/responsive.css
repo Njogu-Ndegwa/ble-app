@@ -15,6 +15,35 @@
  */
 
 /* =====================================================
+   WIDTH TOKENS — the responsive flip
+   Base values (430px) live in design-system.css; these overrides are what
+   widen every token-driven column on tablet/desktop.
+   ===================================================== */
+
+@media (min-width: 768px) {
+  :root {
+    --content-narrow: 560px;
+    --content-default: 680px;
+    --content-wide: 720px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --content-narrow: 600px;
+    --content-default: 760px;
+    --content-wide: 960px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --content-default: 840px;
+    --content-wide: 1140px;
+  }
+}
+
+/* =====================================================
    SHELL — AppShell / ContentColumn
    Base styles for the NEW shell components live here (they replace the five
    legacy *-container classes; base values reproduce .sales-container et al
@@ -121,6 +150,17 @@
 /* =====================================================
    NAV — NavRail / BottomNav visibility
    ===================================================== */
+
+/* Un-migrated applets (and the deliberately phone-shaped ones: rider,
+   keypad, BLE tools) keep their bottom tab bar on wide screens — center it
+   over the content column instead of smearing tabs across the viewport. */
+@media (min-width: 768px) {
+  .bottom-nav {
+    width: 100%;
+    max-width: var(--content-default);
+    margin: 0 auto;
+  }
+}
 
 .nav-rail {
   display: none;

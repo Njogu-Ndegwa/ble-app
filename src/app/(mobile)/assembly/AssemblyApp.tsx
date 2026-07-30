@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import AppHeader from '@/components/AppHeader';
+import { AppShell } from '@/components/layout';
 import AssemblyQueue from './components/AssemblyQueue';
 import AssemblyDetail from './components/AssemblyDetail';
 import AssemblyCreate from './components/AssemblyCreate';
@@ -50,27 +50,22 @@ export default function AssemblyApp(_: AssemblyAppProps) {
   }, []);
 
   return (
-    <div className="sales-container">
-      <div className="sales-bg-gradient" />
-      <AppHeader showBack />
-
-      <main className="sales-main sales-main-screen">
-        <div className="sales-screen-container">
-          {screen === 'queue' && (
-            <AssemblyQueue
-              onSelect={handleSelectMo}
-              onCreate={handleCreate}
-              reloadKey={queueReloadKey}
-            />
-          )}
-          {screen === 'create' && (
-            <AssemblyCreate onDone={handleCreated} onCancel={() => setScreen('queue')} />
-          )}
-          {screen === 'detail' && selectedMo && (
-            <AssemblyDetail mo={selectedMo} onBack={handleBack} />
-          )}
-        </div>
-      </main>
-    </div>
+    <AppShell header={{ showBack: true }} width="default">
+      <div className="sales-screen-container">
+        {screen === 'queue' && (
+          <AssemblyQueue
+            onSelect={handleSelectMo}
+            onCreate={handleCreate}
+            reloadKey={queueReloadKey}
+          />
+        )}
+        {screen === 'create' && (
+          <AssemblyCreate onDone={handleCreated} onCancel={() => setScreen('queue')} />
+        )}
+        {screen === 'detail' && selectedMo && (
+          <AssemblyDetail mo={selectedMo} onBack={handleBack} />
+        )}
+      </div>
+    </AppShell>
   );
 }
