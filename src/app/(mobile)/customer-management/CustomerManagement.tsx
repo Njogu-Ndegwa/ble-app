@@ -29,6 +29,7 @@ import {
   PhoneInputWithCountry,
 } from '@/components/ui';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
+import { MasterDetail } from '@/components/layout';
 import FilterChips from '@/components/ui/FilterChips';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import {
@@ -504,8 +505,7 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
     { value: 'company', label: t('customerMgmt.filterCompany') || 'Company' },
   ];
 
-  if (subView === 'list') {
-    return (
+  const renderList = () => (
       <ListScreen
         title={t('customerMgmt.title') || 'Customer Management'}
         searchPlaceholder={t('sales.searchCustomerPlaceholder') || 'Search by name, email, or phone...'}
@@ -592,14 +592,12 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
           </div>
         )}
       </ListScreen>
-    );
-  }
+  );
 
   // ------------------------------------------------------------------
   // DETAIL VIEW (with delete support)
   // ------------------------------------------------------------------
-  if (subView === 'detail' && isLoadingDetail) {
-    return (
+  const renderDetailLoading = () => (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 px-4 pt-3 pb-2">
           <button onClick={goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
@@ -634,10 +632,10 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
           </div>
         </div>
       </div>
-    );
-  }
+  );
 
-  if (subView === 'detail' && selectedCustomer) {
+  const renderDetail = () => {
+    if (!selectedCustomer) return null;
     const initials = selectedCustomer.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
     const detailSections: DetailSectionType[] = [
       {
@@ -752,12 +750,12 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
         <style jsx>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
       </div>
     );
-  }
+  };
 
   // ------------------------------------------------------------------
   // EDIT / CREATE VIEW
   // ------------------------------------------------------------------
-  return (
+  const renderForm = () => (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <button onClick={subView === 'edit' ? goBackToDetail : goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
@@ -849,5 +847,21 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
         </button>
       </div>
     </div>
+  );
+
+  const detailPane =
+    subView === 'detail'
+      ? (isLoadingDetail ? renderDetailLoading() : renderDetail())
+      : subView === 'create' || subView === 'edit'
+        ? renderForm()
+        : null;
+
+  return (
+    <MasterDetail
+      isDetailActive={subView !== 'list'}
+      list={renderList()}
+      detail={detailPane}
+      placeholder={t('customerMgmt.selectCustomerHint') || 'Select a customer to view their details'}
+    />
   );
 }

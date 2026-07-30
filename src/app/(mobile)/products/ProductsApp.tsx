@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import ProductsList from './components/ProductsList';
 import ProductDetail from './components/ProductDetail';
 import type { OdooProduct } from '@/lib/portal/types';
-import { AppShell } from '@/components/layout';
+import { AppShell, MasterDetail } from '@/components/layout';
 
 type Screen = 'list' | 'detail';
 
@@ -35,17 +35,21 @@ export default function ProductsApp(_: ProductsAppProps) {
   }, []);
 
   return (
-    <AppShell header={{ showBack: true }} width="default">
+    <AppShell header={{ showBack: true }} width="wide">
       <div className="sales-screen-container">
-        {screen === 'list' && (
-          <ProductsList onSelect={handleSelectProduct} />
-        )}
-        {screen === 'detail' && selectedProduct && (
-          <ProductDetail
-            product={selectedProduct}
-            onBack={handleBack}
-          />
-        )}
+        <MasterDetail
+          isDetailActive={screen !== 'list'}
+          list={<ProductsList onSelect={handleSelectProduct} />}
+          detail={
+            screen === 'detail' && selectedProduct ? (
+              <ProductDetail
+                product={selectedProduct}
+                onBack={handleBack}
+              />
+            ) : null
+          }
+          placeholder="Select a product to view its details"
+        />
       </div>
     </AppShell>
   );

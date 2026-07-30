@@ -78,6 +78,12 @@ export interface ListScreenProps {
   // --- Optional FAB ---
   fabAction?: () => void;
   fabLabel?: string;
+  /**
+   * Opt-in responsive grid: minimum card width in px. When set, items lay
+   * out as a multi-column grid at md+ (mobile stays the single column).
+   * Only enable after checking the item cards tolerate variable width.
+   */
+  gridMinWidth?: number;
 }
 
 /**
@@ -116,6 +122,7 @@ export default function ListScreen({
   children,
   fabAction,
   fabLabel,
+  gridMinWidth,
 }: ListScreenProps) {
   const { t } = useI18n();
   const [showPeriodPicker, setShowPeriodPicker] = useState(false);
@@ -274,7 +281,12 @@ export default function ListScreen({
 
           {/* List content */}
           {!isLoading && !error && !isEmpty && (
-            <div className="flex flex-col gap-2">{children}</div>
+            <div
+              className={`flex flex-col gap-2${gridMinWidth ? ' ls-items-grid' : ''}`}
+              style={gridMinWidth ? ({ '--ls-grid-min': `${gridMinWidth}px` } as React.CSSProperties) : undefined}
+            >
+              {children}
+            </div>
           )}
 
           {/* Spacer pushes pagination to bottom when few items */}

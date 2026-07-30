@@ -21,6 +21,7 @@ import {
 import DetailScreen, { type DetailSection as DetailSectionType } from '@/components/ui/DetailScreen';
 import { FormInput, FormSection, FormRow } from '@/components/ui';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
+import { MasterDetail } from '@/components/layout';
 import FilterChips from '@/components/ui/FilterChips';
 import SelectSheet, { type SelectSheetItem } from '@/components/ui/SelectSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -436,8 +437,7 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
     return items;
   }, [stages, t]);
 
-  if (subView === 'list') {
-    return (
+  const renderList = () => (
       <ListScreen
         title={t('ticketing.title') || 'Tickets'}
         searchPlaceholder={t('ticketing.list.search') || 'Search tickets…'}
@@ -529,14 +529,12 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
           </div>
         )}
       </ListScreen>
-    );
-  }
+  );
 
   // ------------------------------------------------------------------
   // DETAIL VIEW (with delete support + embedded chatter)
   // ------------------------------------------------------------------
-  if (subView === 'detail' && isLoadingDetail) {
-    return (
+  const renderDetailLoading = () => (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 px-4 pt-3 pb-2">
           <button onClick={goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
@@ -571,10 +569,10 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
           </div>
         </div>
       </div>
-    );
-  }
+  );
 
-  if (subView === 'detail' && selectedTicket) {
+  const renderDetail = () => {
+    if (!selectedTicket) return null;
     const stageName = selectedTicket.stageName || (t('ticketing.stage.unknown') || '(no stage)');
     const description = htmlToText(selectedTicket.description);
     const detailSections: DetailSectionType[] = [
@@ -731,12 +729,12 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
         <style jsx>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
       </div>
     );
-  }
+  };
 
   // ------------------------------------------------------------------
   // EDIT / CREATE VIEW
   // ------------------------------------------------------------------
-  return (
+  const renderForm = () => (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <button onClick={subView === 'edit' ? goBackToDetail : goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
@@ -859,6 +857,22 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
         </button>
       </div>
     </div>
+  );
+
+  const detailPane =
+    subView === 'detail'
+      ? (isLoadingDetail ? renderDetailLoading() : renderDetail())
+      : subView === 'create' || subView === 'edit'
+        ? renderForm()
+        : null;
+
+  return (
+    <MasterDetail
+      isDetailActive={subView !== 'list'}
+      list={renderList()}
+      detail={detailPane}
+      placeholder={t('ticketing.selectTicketHint') || 'Select a ticket to view its details'}
+    />
   );
 }
 

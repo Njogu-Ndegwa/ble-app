@@ -18,6 +18,7 @@ import {
 import DetailScreen, { type DetailSection as DetailSectionType } from '@/components/ui/DetailScreen';
 import { FormInput, FormSection } from '@/components/ui';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
+import { MasterDetail } from '@/components/layout';
 import FilterChips from '@/components/ui/FilterChips';
 import SelectSheet, { type SelectSheetItem } from '@/components/ui/SelectSheet';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
@@ -509,8 +510,7 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t]);
 
-  if (subView === 'list') {
-    return (
+  const renderList = () => (
       <ListScreen
         title={t('support.title') || 'Support'}
         searchPlaceholder={t('support.list.search') || 'Search tickets…'}
@@ -618,14 +618,12 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
           </div>
         )}
       </ListScreen>
-    );
-  }
+  );
 
   // ------------------------------------------------------------------
   // DETAIL VIEW (chatter + own-ticket edit/close affordances)
   // ------------------------------------------------------------------
-  if (subView === 'detail' && isLoadingDetail) {
-    return (
+  const renderDetailLoading = () => (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 px-4 pt-3 pb-2">
           <button onClick={goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
@@ -660,10 +658,10 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
           </div>
         </div>
       </div>
-    );
-  }
+  );
 
-  if (subView === 'detail' && selectedTicket) {
+  const renderDetail = () => {
+    if (!selectedTicket) return null;
     const stageName = selectedTicket.stageName || (t('ticketing.stage.unknown') || '(no stage)');
     const mine = isMine(selectedTicket);
     const terminal = isTerminal(selectedTicket);
@@ -797,13 +795,13 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
         <style jsx>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
       </div>
     );
-  }
+  };
 
   // ------------------------------------------------------------------
   // EDIT / CREATE VIEW — subject, description, priority. No stage or
   // customer pickers: the customer is always the session's own partner.
   // ------------------------------------------------------------------
-  return (
+  const renderForm = () => (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <button onClick={subView === 'edit' ? goBackToDetail : goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
@@ -884,6 +882,22 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
         </button>
       </div>
     </div>
+  );
+
+  const detailPane =
+    subView === 'detail'
+      ? (isLoadingDetail ? renderDetailLoading() : renderDetail())
+      : subView === 'create' || subView === 'edit'
+        ? renderForm()
+        : null;
+
+  return (
+    <MasterDetail
+      isDetailActive={subView !== 'list'}
+      list={renderList()}
+      detail={detailPane}
+      placeholder={t('support.selectTicketHint') || 'Select a ticket to view its details'}
+    />
   );
 }
 

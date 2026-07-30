@@ -33,7 +33,7 @@ export default function CustomerApp({ onLogout }: CustomerAppProps) {
   }, [onLogout, router]);
 
   return (
-    <AppShell header={{ showBack: true }} width="default">
+    <AppShell header={{ showBack: true }} width="wide">
       <div className="sales-screen-container">
         <CustomerManagement onLogout={handleLogout} />
       </div>

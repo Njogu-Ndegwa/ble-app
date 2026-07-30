@@ -33,7 +33,7 @@ export default function TicketingApp({ onLogout }: TicketingAppProps) {
   }, [onLogout, router]);
 
   return (
-    <AppShell header={{ showBack: true }} width="default">
+    <AppShell header={{ showBack: true }} width="wide">
       <div className="sales-screen-container">
         <Ticketing onLogout={handleLogout} />
       </div>

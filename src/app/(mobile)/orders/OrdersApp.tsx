@@ -5,7 +5,7 @@ import OrdersList from './components/OrdersList';
 import OrderDetail from './components/OrderDetail';
 import CreateOrder from './components/CreateOrder';
 import type { OrderEntity } from '@/lib/portal/types';
-import { AppShell } from '@/components/layout';
+import { AppShell, MasterDetail } from '@/components/layout';
 
 type Screen = 'list' | 'detail' | 'create';
 
@@ -51,21 +51,26 @@ export default function OrdersApp(_: OrdersAppProps) {
   }, []);
 
   return (
-    <AppShell header={{ showBack: true }} width="default">
+    <AppShell header={{ showBack: true }} width="wide">
       <div className="sales-screen-container">
-        {screen === 'list' && (
-          <OrdersList
-            key={refreshKey}
-            onSelect={handleSelectOrder}
-            onCreateNew={handleCreate}
-          />
-        )}
-        {screen === 'detail' && selectedOrderId && (
-          <OrderDetail orderId={selectedOrderId} onBack={handleBack} />
-        )}
-        {screen === 'create' && (
-          <CreateOrder onCreated={handleCreated} onCancel={handleBackFromCreate} />
-        )}
+        <MasterDetail
+          isDetailActive={screen !== 'list'}
+          list={
+            <OrdersList
+              key={refreshKey}
+              onSelect={handleSelectOrder}
+              onCreateNew={handleCreate}
+            />
+          }
+          detail={
+            screen === 'detail' && selectedOrderId ? (
+              <OrderDetail orderId={selectedOrderId} onBack={handleBack} />
+            ) : screen === 'create' ? (
+              <CreateOrder onCreated={handleCreated} onCancel={handleBackFromCreate} />
+            ) : null
+          }
+          placeholder="Select an order to view its details"
+        />
       </div>
     </AppShell>
   );

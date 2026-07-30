@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppShell } from '@/components/layout';
+import { AppShell, MasterDetail } from '@/components/layout';
 import FleetsList from './components/FleetsList';
 import FleetDetail from './components/FleetDetail';
 import FleetForm from './components/FleetForm';
@@ -53,36 +53,41 @@ export default function FleetsApp(_: FleetsAppProps) {
     setScreen('detail');
   }, []);
 
+  const detailPane =
+    screen === 'detail' && selectedFleet ? (
+      <FleetDetail
+        fleetId={selectedFleet.id}
+        onBack={handleBackToList}
+        onEdit={handleEdit}
+      />
+    ) : screen === 'create' ? (
+      <FleetForm
+        onDone={handleFormDone}
+        onCancel={() => setScreen('list')}
+      />
+    ) : screen === 'edit' && selectedFleet ? (
+      <FleetForm
+        fleet={selectedFleet}
+        onDone={handleFormDone}
+        onCancel={() => setScreen('detail')}
+      />
+    ) : null;
+
   return (
-    <AppShell header={{ showBack: true }} width="default">
+    <AppShell header={{ showBack: true }} width="wide">
       <div className="sales-screen-container">
-        {screen === 'list' && (
-          <FleetsList
-            onSelect={handleSelectFleet}
-            onCreate={handleCreate}
-            reloadKey={listReloadKey}
-          />
-        )}
-        {screen === 'detail' && selectedFleet && (
-          <FleetDetail
-            fleetId={selectedFleet.id}
-            onBack={handleBackToList}
-            onEdit={handleEdit}
-          />
-        )}
-        {screen === 'create' && (
-          <FleetForm
-            onDone={handleFormDone}
-            onCancel={() => setScreen('list')}
-          />
-        )}
-        {screen === 'edit' && selectedFleet && (
-          <FleetForm
-            fleet={selectedFleet}
-            onDone={handleFormDone}
-            onCancel={() => setScreen('detail')}
-          />
-        )}
+        <MasterDetail
+          isDetailActive={screen !== 'list'}
+          list={
+            <FleetsList
+              onSelect={handleSelectFleet}
+              onCreate={handleCreate}
+              reloadKey={listReloadKey}
+            />
+          }
+          detail={detailPane}
+          placeholder="Select a fleet to view its details"
+        />
       </div>
     </AppShell>
   );

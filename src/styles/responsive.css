@@ -196,6 +196,16 @@
    LISTS — ListScreen grid mode, FAB anchoring
    ===================================================== */
 
+/* ListScreen opt-in grid (gridMinWidth prop): single column on phones,
+   auto-fill grid at md+. --ls-grid-min is set inline by the component. */
+@media (min-width: 768px) {
+  .ls-items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--ls-grid-min, 280px), 1fr));
+    gap: 12px;
+  }
+}
+
 /* FAB pinned to the content column instead of the viewport corner.
    On phones (viewport <= column width) this evaluates to exactly 1.25rem —
    pixel-identical to the old `right-5`. */
@@ -207,7 +217,70 @@
 
 /* =====================================================
    MASTER-DETAIL — two-pane split at lg
+   (Only ever rendered at >=lg — the component returns the mobile swap below
+   that — but the rules are still scoped to lg for contract consistency.)
    ===================================================== */
+
+@media (min-width: 1024px) {
+  /* When a split is present, the shell's main stops scrolling and hands its
+     height down so each pane scrolls independently. */
+  .app-shell-main:has(.master-detail) {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-shell-main:has(.master-detail) .sales-screen-container {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .master-detail {
+    display: flex;
+    gap: 20px;
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .master-detail-list {
+    width: clamp(340px, 32vw, 420px);
+    flex-shrink: 0;
+    min-height: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    padding-right: 16px;
+  }
+
+  .master-detail-pane {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .master-detail-placeholder {
+    height: 100%;
+    min-height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: var(--font-sm);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  /* Inside the split, hide DetailScreen/back affordances that only make
+     sense when the panes swap (the list is already on screen). */
+  .master-detail-pane .detail-back-btn {
+    display: none;
+  }
+}
 
 /* =====================================================
    FORMS — flow summary grids, input row pairing
@@ -233,6 +306,17 @@
 /* =====================================================
    DASHBOARD — KPI grids
    ===================================================== */
+
+/* Rollup folder/record card lists: single column on phones, auto-fill grid
+   at md+. !important is needed because the mobile base is an inline
+   display:flex style on the same element. */
+@media (min-width: 768px) {
+  .dashboard-card-list {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-2);
+  }
+}
 
 /* =====================================================
    TIMELINE — flow stepper fan-out at md

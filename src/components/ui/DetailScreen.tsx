@@ -93,7 +93,7 @@ export default function DetailScreen({
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <button
           onClick={onBack}
-          className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors"
+          className="detail-back-btn p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors"
           aria-label="Back"
         >
           <ArrowLeft size={20} className="text-text-primary" />

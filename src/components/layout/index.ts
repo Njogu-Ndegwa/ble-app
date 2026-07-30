@@ -6,3 +6,5 @@ export { default as AppNav } from './AppNav';
 export type { AppNavProps } from './AppNav';
 export { default as NavRail } from './NavRail';
 export type { NavRailProps } from './NavRail';
+export { default as MasterDetail } from './MasterDetail';
+export type { MasterDetailProps } from './MasterDetail';
