@@ -16,7 +16,28 @@ env:
   BRANCH_NAME: main
 
 jobs:
+  # The suite (94 tests as of 2026-07-30) existed for months while both
+  # workflows built and shipped images without ever running it — a green local
+  # run can't stop a bad deploy. Build now requires tests. `npm ci` needs the
+  # lockfile; vitest is a devDependency, so no global installs.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+
   build-and-publish:
+    needs: test
     permissions:
       id-token: write
       contents: write
