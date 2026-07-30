@@ -318,7 +318,7 @@ export default function ListScreen({
         <button
           onClick={fabAction}
           style={{ backgroundColor: 'var(--color-brand)' }}
-          className="fixed bottom-24 right-5 flex items-center gap-2 h-12 px-5 rounded-full text-black font-semibold text-sm active:scale-95 transition-transform z-30"
+          className="fab-anchor flex items-center gap-2 h-12 px-5 rounded-full text-black font-semibold text-sm active:scale-95 transition-transform z-30"
           aria-label={fabLabel || 'Add'}
         >
           <Plus size={20} strokeWidth={2.5} />
