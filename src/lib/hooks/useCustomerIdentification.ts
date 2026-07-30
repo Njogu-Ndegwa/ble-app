@@ -143,6 +143,147 @@ const INFINITE_QUOTA_THRESHOLD = 100000;
 // HOOK
 // ============================================
 
+/**
+ * Parse and process the GraphQL identification response.
+ *
+ * Module-level and pure on purpose: it was born inside a `useCallback(..., [])`
+ * — empty deps, no hook state — which is a pure function wearing a hook
+ * costume. Lifting it out lets the invariants it enforces be tested directly
+ * (house pattern: export pure helpers, test them — see useRiderActivity).
+ * The hook below wraps it unchanged.
+ */
+export function processIdentificationResponse(
+response: IdentifyCustomerResponse,
+input: IdentifyCustomerInputParams
+): CustomerIdentificationResult | null {
+  // Check for success
+  if (!isIdentificationSuccessful(response)) {
+    // Check for specific error signals
+    const signals = response.signals || [];
+    let errorMsg = 'Customer not found';
+    
+    if (hasErrorSignals(signals)) {
+      if (signals.includes('SERVICE_PLAN_NOT_FOUND') || signals.includes('CUSTOMER_NOT_FOUND')) {
+        errorMsg = 'Customer not found. Please check the subscription ID.';
+      } else if (signals.includes('INVALID_QR_CODE')) {
+        errorMsg = 'Invalid QR code. Please scan a valid customer QR code.';
+      } else if (signals.includes('INVALID_SUBSCRIPTION_ID')) {
+        errorMsg = 'Invalid subscription ID format.';
+      }
+    }
+    throw new Error(errorMsg);
+  }
+
+  // Parse metadata
+  const metadata = parseIdentifyCustomerMetadata(response.metadata);
+  if (!metadata) {
+    throw new Error('Invalid customer data received');
+  }
+
+  // Handle both fresh and idempotent (cached) responses
+  const isIdempotent = response.signals.includes('IDEMPOTENT_OPERATION_DETECTED');
+  const servicePlanData = metadata.service_plan_data;
+  const serviceBundle = metadata.service_bundle;
+  const commonTerms = metadata.common_terms;
+  const identifiedCustomerId = metadata.customer_id;
+
+  if (!servicePlanData) {
+    throw new Error('Invalid customer data received');
+  }
+
+  // Extract and enrich service states
+  const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
+    (service: GraphQLServiceState) => typeof service?.service_id === 'string'
+  );
+  
+  const enrichedServiceStates: ServiceState[] = extractedServiceStates.map((serviceState: GraphQLServiceState) => {
+    const matchingService = serviceBundle?.services?.find(
+      (svc: GraphQLServiceDefinition) => svc.serviceId === serviceState.service_id
+    );
+    return {
+      ...serviceState,
+      name: matchingService?.name,
+      usageUnitPrice: matchingService?.usageUnitPrice,
+    };
+  });
+
+  // Find specific services
+  const batteryFleet = enrichedServiceStates.find(
+    (s) => s.service_id?.includes('service-battery-fleet')
+  );
+  
+  // Find energy service - check for both "service-energy" and "service-electricity" patterns
+  // Different deployments may use different naming conventions
+  const energyService = enrichedServiceStates.find(
+    (s) => s.service_id?.includes('service-energy') || s.service_id?.includes('service-electricity')
+  );
+  
+  const swapCountService = enrichedServiceStates.find(
+    (s) => s.service_id?.includes('service-swap-count')
+  );
+
+  // Determine customer type
+  const customerType: 'first-time' | 'returning' = batteryFleet?.current_asset ? 'returning' : 'first-time';
+
+  // The customer's plan is the single source of currency. common_terms is
+  // deliberately NOT consulted: it is a shared contract-terms document that
+  // can belong to a different region than the plan (a Kenyan customer
+  // attached to Togo terms reads back "XOF"), so mixing the two put two
+  // different currencies on one screen.
+  const billingCurrency = servicePlanData?.currency || PAYMENT.defaultCurrency;
+  
+  // Get rate from energy service - NO default fallback for Sales workflow
+  // If energy service is not found, rate will be 0 and Sales flow will require manual retry
+  const rate = energyService?.usageUnitPrice || 0;
+  
+  // Log warning if energy service not found - helps with debugging
+  if (!energyService) {
+    console.warn('[Customer Identification] Energy service not found in service states. Available services:', 
+      enrichedServiceStates.map(s => s.service_id).join(', '));
+  }
+
+  // Check for infinite quota services
+  const hasInfiniteEnergyQuota = (energyService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+  const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+
+  // Calculate remaining quota values
+  const energyRemaining = energyService ? round(energyService.quota - energyService.used, 2) : 0;
+  const energyUnitPrice = energyService?.usageUnitPrice || 0;
+  const energyValue = energyRemaining * energyUnitPrice;
+
+  // Build customer data
+  // NOTE: We no longer use customer ID as a fallback for name - subscription ID is the primary identifier
+  const customer: IdentifiedCustomerData = {
+    id: identifiedCustomerId || servicePlanData.customerId || input.customerId || input.subscriptionCode,
+    name: input.name || 'Customer',
+    subscriptionId: servicePlanData.servicePlanId || input.subscriptionCode,
+    subscriptionType: servicePlanData.templateId || '',
+    phone: input.phone || '',
+    swapCount: swapCountService?.used || 0,
+    lastSwap: 'N/A',
+    energyRemaining,
+    energyTotal: energyService?.quota || 0,
+    energyValue,
+    energyUnitPrice,
+    swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
+    swapsTotal: swapCountService?.quota || 21,
+    hasInfiniteEnergyQuota,
+    hasInfiniteSwapQuota,
+    paymentState: (servicePlanData.paymentState || 'INITIAL') as IdentifiedCustomerData['paymentState'],
+    serviceState: (servicePlanData.serviceState || 'INITIAL') as IdentifiedCustomerData['serviceState'],
+    currentBatteryId: batteryFleet?.current_asset || undefined,
+  };
+
+  return {
+    customer,
+    serviceStates: enrichedServiceStates,
+    customerType,
+    rate,
+    currencySymbol: billingCurrency,
+    isIdempotent,
+  };
+}
+
 export function useCustomerIdentification(config: UseCustomerIdentificationConfig) {
   const {
     attendantInfo,
@@ -158,139 +299,10 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
   const isCancelledRef = useRef<boolean>(false);
 
   /**
-   * Parse and process the GraphQL response data
+   * Parse and process the GraphQL response data (pure logic lives in
+   * processIdentificationResponse above, where tests can reach it).
    */
-  const processResponseData = useCallback((
-    response: IdentifyCustomerResponse,
-    input: IdentifyCustomerInputParams
-  ): CustomerIdentificationResult | null => {
-    // Check for success
-    if (!isIdentificationSuccessful(response)) {
-      // Check for specific error signals
-      const signals = response.signals || [];
-      let errorMsg = 'Customer not found';
-      
-      if (hasErrorSignals(signals)) {
-        if (signals.includes('SERVICE_PLAN_NOT_FOUND') || signals.includes('CUSTOMER_NOT_FOUND')) {
-          errorMsg = 'Customer not found. Please check the subscription ID.';
-        } else if (signals.includes('INVALID_QR_CODE')) {
-          errorMsg = 'Invalid QR code. Please scan a valid customer QR code.';
-        } else if (signals.includes('INVALID_SUBSCRIPTION_ID')) {
-          errorMsg = 'Invalid subscription ID format.';
-        }
-      }
-      throw new Error(errorMsg);
-    }
-
-    // Parse metadata
-    const metadata = parseIdentifyCustomerMetadata(response.metadata);
-    if (!metadata) {
-      throw new Error('Invalid customer data received');
-    }
-
-    // Handle both fresh and idempotent (cached) responses
-    const isIdempotent = response.signals.includes('IDEMPOTENT_OPERATION_DETECTED');
-    const servicePlanData = metadata.service_plan_data;
-    const serviceBundle = metadata.service_bundle;
-    const commonTerms = metadata.common_terms;
-    const identifiedCustomerId = metadata.customer_id;
-
-    if (!servicePlanData) {
-      throw new Error('Invalid customer data received');
-    }
-
-    // Extract and enrich service states
-    const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
-      (service: GraphQLServiceState) => typeof service?.service_id === 'string'
-    );
-    
-    const enrichedServiceStates: ServiceState[] = extractedServiceStates.map((serviceState: GraphQLServiceState) => {
-      const matchingService = serviceBundle?.services?.find(
-        (svc: GraphQLServiceDefinition) => svc.serviceId === serviceState.service_id
-      );
-      return {
-        ...serviceState,
-        name: matchingService?.name,
-        usageUnitPrice: matchingService?.usageUnitPrice,
-      };
-    });
-
-    // Find specific services
-    const batteryFleet = enrichedServiceStates.find(
-      (s) => s.service_id?.includes('service-battery-fleet')
-    );
-    
-    // Find energy service - check for both "service-energy" and "service-electricity" patterns
-    // Different deployments may use different naming conventions
-    const energyService = enrichedServiceStates.find(
-      (s) => s.service_id?.includes('service-energy') || s.service_id?.includes('service-electricity')
-    );
-    
-    const swapCountService = enrichedServiceStates.find(
-      (s) => s.service_id?.includes('service-swap-count')
-    );
-
-    // Determine customer type
-    const customerType: 'first-time' | 'returning' = batteryFleet?.current_asset ? 'returning' : 'first-time';
-
-    // The customer's plan is the single source of currency. common_terms is
-    // deliberately NOT consulted: it is a shared contract-terms document that
-    // can belong to a different region than the plan (a Kenyan customer
-    // attached to Togo terms reads back "XOF"), so mixing the two put two
-    // different currencies on one screen.
-    const billingCurrency = servicePlanData?.currency || PAYMENT.defaultCurrency;
-    
-    // Get rate from energy service - NO default fallback for Sales workflow
-    // If energy service is not found, rate will be 0 and Sales flow will require manual retry
-    const rate = energyService?.usageUnitPrice || 0;
-    
-    // Log warning if energy service not found - helps with debugging
-    if (!energyService) {
-      console.warn('[Customer Identification] Energy service not found in service states. Available services:', 
-        enrichedServiceStates.map(s => s.service_id).join(', '));
-    }
-
-    // Check for infinite quota services
-    const hasInfiniteEnergyQuota = (energyService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-    const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-
-    // Calculate remaining quota values
-    const energyRemaining = energyService ? round(energyService.quota - energyService.used, 2) : 0;
-    const energyUnitPrice = energyService?.usageUnitPrice || 0;
-    const energyValue = energyRemaining * energyUnitPrice;
-
-    // Build customer data
-    // NOTE: We no longer use customer ID as a fallback for name - subscription ID is the primary identifier
-    const customer: IdentifiedCustomerData = {
-      id: identifiedCustomerId || servicePlanData.customerId || input.customerId || input.subscriptionCode,
-      name: input.name || 'Customer',
-      subscriptionId: servicePlanData.servicePlanId || input.subscriptionCode,
-      subscriptionType: servicePlanData.templateId || '',
-      phone: input.phone || '',
-      swapCount: swapCountService?.used || 0,
-      lastSwap: 'N/A',
-      energyRemaining,
-      energyTotal: energyService?.quota || 0,
-      energyValue,
-      energyUnitPrice,
-      swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
-      swapsTotal: swapCountService?.quota || 21,
-      hasInfiniteEnergyQuota,
-      hasInfiniteSwapQuota,
-      paymentState: (servicePlanData.paymentState || 'INITIAL') as IdentifiedCustomerData['paymentState'],
-      serviceState: (servicePlanData.serviceState || 'INITIAL') as IdentifiedCustomerData['serviceState'],
-      currentBatteryId: batteryFleet?.current_asset || undefined,
-    };
-
-    return {
-      customer,
-      serviceStates: enrichedServiceStates,
-      customerType,
-      rate,
-      currencySymbol: billingCurrency,
-      isIdempotent,
-    };
-  }, []);
+  const processResponseData = useCallback(processIdentificationResponse, []);
 
   /**
    * Identify a customer via GraphQL
