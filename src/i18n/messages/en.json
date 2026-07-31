@@ -1030,6 +1030,7 @@
   "role.topUpSwap": "Top-Up Swap",
   "role.salesRep": "Sales Rep",
   "role.keypad": "Keypad",
+  "role.charger": "Charger Control",
   "role.rider": "Rider",
   "role.bleDeviceManager": "Device Manager",
   "role.attendantDesc": "Station Operations",

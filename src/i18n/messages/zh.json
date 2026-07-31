@@ -930,6 +930,7 @@
   "role.topUpSwap": "充值换电",
   "role.salesRep": "销售代表",
   "role.keypad": "键盘",
+  "role.charger": "充电控制",
   "role.rider": "骑手",
   "role.bleDeviceManager": "设备管理",
   "role.attendantDesc": "换电站运营",

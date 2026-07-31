@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Zap, FolderTree, LifeBuoy } from 'lucide-react';
+import { Zap, FolderTree, LifeBuoy, BatteryCharging } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import AppHeader from '@/components/AppHeader';
 import { getActiveSAApplets, getSelectedSA } from '@/lib/ov-auth';
@@ -23,6 +23,12 @@ interface RoleConfig {
    * always shown.
    */
   appletSlug?: string | string[];
+  /**
+   * When true, the role is only visible while the selected SA is the test
+   * company (see TEST_COMPANY_SA_PATTERN) — used to trial unreleased applets
+   * without granting a backend applet slug.
+   */
+  testCompanyOnly?: boolean;
   disabled?: boolean;
   badgeKey?: string;
   icon:
@@ -53,6 +59,13 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   ticketing: 'ticketing',
   rollup: 'rollup',
 };
+
+/**
+ * SAs whose name matches this pattern are treated as the test company.
+ * Roles flagged `testCompanyOnly` surface only for these SAs, so unreleased
+ * MVP applets can be trialed in production builds without a backend change.
+ */
+const TEST_COMPANY_SA_PATTERN = /test/i;
 
 const ALL_ROLES: RoleConfig[] = [
   // Row 1: Data & logistics
@@ -136,6 +149,14 @@ const ALL_ROLES: RoleConfig[] = [
     // Visible when the SA has either 'assets' OR 'mydevices' in its applet list.
     appletSlug: ['assets', 'mydevices'],
   },
+  {
+    id: 'charger',
+    labelKey: 'role.charger',
+    icon: { type: 'lucide', el: <BatteryCharging size={28} color="#fff" />, gradient: 'role-grad-keypad' },
+    path: '/charger',
+    // MVP under evaluation — only visible in the test company SA.
+    testCompanyOnly: true,
+  },
   // Row 4: Management
   {
     id: 'rollup',
@@ -180,12 +201,16 @@ export default function SelectRole({ onSwitchSA }: Props) {
   // caller renders an empty state instead of falling back to all roles.
   const visibleRoles = useMemo(() => {
     const saApplets = getActiveSAApplets();
+    const isTestCompany = TEST_COMPANY_SA_PATTERN.test(getSelectedSA()?.name ?? '');
 
-    if (saApplets.length === 0) {
+    if (saApplets.length === 0 && !isTestCompany) {
       return [] as RoleConfig[];
     }
 
     const filtered = ALL_ROLES.filter(role => {
+      // Test-company-only roles bypass the applet-slug check entirely: they
+      // are shown for the test company SA and hidden everywhere else.
+      if (role.testCompanyOnly) return isTestCompany;
       const slug = role.appletSlug ?? APPLET_SLUG_MAP[role.id];
       if (!slug) return true;
       const slugs = Array.isArray(slug) ? slug : [slug];
