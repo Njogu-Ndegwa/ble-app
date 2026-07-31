@@ -469,7 +469,7 @@ const ChargerApp: React.FC = () => {
             </div>
             <button
               className="btn btn-secondary"
-              style={{ padding: "6px 12px", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+              style={{ flex: "0 0 auto", padding: "6px 12px", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
               onClick={() => (isScanning ? stopBleScan() : startBleScan())}
             >
               <RefreshCw size={13} />
@@ -610,7 +610,7 @@ const ChargerApp: React.FC = () => {
             </div>
             <button
               className="btn btn-secondary"
-              style={{ padding: "6px 12px", fontSize: 12 }}
+              style={{ flex: "0 0 auto", padding: "6px 12px", fontSize: 12 }}
               onClick={disconnect}
             >
               {t("Disconnect")}
