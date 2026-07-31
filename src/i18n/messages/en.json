@@ -927,6 +927,7 @@
   "role.topUpSwap": "Top-Up Swap",
   "role.salesRep": "Sales Rep",
   "role.keypad": "Keypad",
+  "role.charger": "Charger Control",
   "role.rider": "Rider",
   "role.riderBasic": "Rider Basic",
   "role.riderBasicDesc": "Ride & Navigate (No Top-Up)",

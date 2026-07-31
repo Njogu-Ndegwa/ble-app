@@ -922,6 +922,7 @@
   "role.topUpSwap": "充值换电",
   "role.salesRep": "销售代表",
   "role.keypad": "键盘",
+  "role.charger": "充电控制",
   "role.rider": "骑手",
   "role.riderBasic": "基础骑手",
   "role.riderBasicDesc": "骑行导航（无充值）",

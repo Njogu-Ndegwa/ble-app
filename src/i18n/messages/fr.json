@@ -929,6 +929,7 @@
   "role.topUpSwap": "Échange recharge",
   "role.salesRep": "Commercial",
   "role.keypad": "Clavier",
+  "role.charger": "Contrôle chargeur",
   "role.rider": "Conducteur",
   "role.riderBasic": "Conducteur Basique",
   "role.riderBasicDesc": "Rouler & Naviguer (sans recharge)",
