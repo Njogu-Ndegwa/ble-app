@@ -2264,5 +2264,6 @@
   "charger.paidNotDispensedHint": "Le conducteur a déjà payé — ne faites pas payer à nouveau. Vérifiez que le chargeur est à portée, reconnectez si besoin, puis renvoyez.",
   "charger.amountPaid": "Montant payé",
   "charger.paymentMethod": "Payé avec",
-  "charger.energyCredited": "Énergie créditée"
+  "charger.energyCredited": "Énergie créditée",
+  "role.category.trial": "Aperçu"
 }

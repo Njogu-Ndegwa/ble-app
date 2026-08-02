@@ -2164,5 +2164,6 @@
   "charger.paidNotDispensedHint": "骑手已经支付 — 请勿重复收款。请确认充电器在通信范围内，必要时重新连接，然后再次下发。",
   "charger.amountPaid": "支付金额",
   "charger.paymentMethod": "支付方式",
-  "charger.energyCredited": "已入账电量"
+  "charger.energyCredited": "已入账电量",
+  "role.category.trial": "预览"
 }

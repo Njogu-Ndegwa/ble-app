@@ -2262,5 +2262,6 @@
   "charger.paidNotDispensedHint": "The rider has already paid — do not take payment again. Check the charger is in range, reconnect if needed, then send again.",
   "charger.amountPaid": "Amount paid",
   "charger.paymentMethod": "Paid with",
-  "charger.energyCredited": "Energy credited"
+  "charger.energyCredited": "Energy credited",
+  "role.category.trial": "Preview"
 }
