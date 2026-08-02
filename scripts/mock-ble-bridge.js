@@ -16,10 +16,14 @@
  * /charger after the app has loaded. (Pasting once and reloading does NOT
  * work: the reload destroys the bridge you just installed.)
  *
- *   MOCK.failWrite()   — make the next BLE write fail (billed-but-not-dispensed)
- *   MOCK.failBilling() — make the next serviceTopup be rejected
- *   MOCK.ambiguous()   — advertise a charger whose GATT names collide
- *   MOCK.reset()       — back to the all-happy-path defaults
+ *   MOCK.failWrite()        — next BLE write fails (paid-but-not-dispensed)
+ *   MOCK.failBilling()      — next ABS credit is rejected
+ *   MOCK.duplicateReceipt() — next receipt reads as already used
+ *   MOCK.underpay()         — next payment comes back short
+ *   MOCK.ambiguous()        — charger exposes colliding GATT names
+ *   MOCK.reset()            — back to the all-happy-path defaults
+ *
+ * Inspect with MOCK.confirms() / MOCK.topups() / MOCK.writes().
  *
  * This file is NOT imported by the app — it is a manual dev utility only.
  */
@@ -29,6 +33,8 @@
     failWrite: false,
     failBilling: false,
     ambiguousGatt: false,
+    duplicateReceipt: false,
+    underpay: false,
   };
 
   const SUB_CODE = 'SUB-8847-KE';
@@ -249,6 +255,9 @@
   };
 
   let quotaRemaining = 18; // 30 quota - 12 used
+  /** Price of the order line the rider is paying for. */
+  let lastAmountDue = 0;
+  window.__mockConfirms = [];
 
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
@@ -336,6 +345,46 @@
 
     // ---- Odoo REST ----
     if (url.includes('odoo.com')) {
+      // Order creation for the rider's mobile-money payment.
+      if (url.includes('/api/subscription/purchase')) {
+        window.__mockOrderId = (window.__mockOrderId || 90000) + 1;
+        return json({ success: true, order_id: window.__mockOrderId });
+      }
+      if (url.includes('/api/sessions/by-order/')) {
+        // The order line carries the price, which is what a full payment must
+        // match when the receipt is later verified.
+        try {
+          const body = JSON.parse((init && init.body) || '{}');
+          const line = (body.products || [])[0];
+          if (line && typeof line.price_unit === 'number') lastAmountDue = line.price_unit;
+        } catch { /* ignore */ }
+        return json({ success: true });
+      }
+      // Mobile-money receipt verification.
+      if (url.includes('/api/lipay/manual-confirm')) {
+        let payload = {};
+        try { payload = JSON.parse((init && init.body) || '{}'); } catch { /* ignore */ }
+        window.__mockConfirms.push(payload);
+        console.info('[mock-odoo] manual-confirm', payload);
+        if (state.duplicateReceipt) {
+          state.duplicateReceipt = false;
+          return json({
+            success: true,
+            data: { is_duplicate: true, message: 'Mock: this receipt was already used' },
+          });
+        }
+        if (state.underpay) {
+          state.underpay = false;
+          return json({
+            success: true,
+            data: { total_paid: 100, remaining_to_pay: lastAmountDue - 100 },
+          });
+        }
+        return json({
+          success: true,
+          data: { total_paid: lastAmountDue, remaining_to_pay: 0, receipt_status: 'new' },
+        });
+      }
       if (url.includes('/api/subscription/status/')) {
         return json({
           success: true,
@@ -373,13 +422,17 @@
     failWrite() { state.failWrite = true; console.info('[mock] next BLE write will FAIL'); },
     failBilling() { state.failBilling = true; console.info('[mock] next serviceTopup will be REJECTED'); },
     ambiguous() { state.ambiguousGatt = true; console.info('[mock] charger will expose colliding characteristic names'); },
+    duplicateReceipt() { state.duplicateReceipt = true; console.info('[mock] next receipt will read as ALREADY USED'); },
+    underpay() { state.underpay = true; console.info('[mock] next payment will be SHORT'); },
     reset() {
       state.failWrite = false; state.failBilling = false; state.ambiguousGatt = false;
+      state.duplicateReceipt = false; state.underpay = false;
       console.info('[mock] back to happy-path defaults');
     },
-    get state() { return { ...state, quotaRemaining }; },
+    get state() { return { ...state, quotaRemaining, lastAmountDue }; },
     writes: () => window.__mockWrites,
     topups: () => window.__mockTopups,
+    confirms: () => window.__mockConfirms,
   };
 
   document.dispatchEvent(new Event('WebViewJavascriptBridgeReady'));

@@ -1,96 +1,16 @@
 /**
  * Pure logic for the Charger Control applet. No React, no network — unit-tested.
  *
- * Billing deliberately reuses the staff Top-Up primitives
- * (`buildServiceTopupInput` / `assessTopupResponse`) rather than re-deriving
- * them: per Esther, charger output is "business-wise similar to a swap — it
- * likewise needs billing and a specified subscription plan", so a charge must
- * settle through exactly the same ABS path a top-up does, with the same
- * idempotency and the same rejection semantics.
+ * Note on idempotency: the rider pays for their own charge with mobile money,
+ * so the mobile-money receipt IS the idempotency key — it is sent to ABS as
+ * both `payment_reference` and `correlation_id`, exactly as the rider app's
+ * Energy Top-Up does. There is deliberately no locally generated reference
+ * here; a receipt is a stronger key because it also ties the ABS credit to a
+ * real payment rather than to a UI session.
  */
 import type { GattCharacteristic } from './types';
 
 export type ChargeMode = 'time' | 'energy';
-
-// ── Idempotency reference ──────────────────────────────────────────────────
-//
-// Same contract as the Top-Up applet: the reference is BOTH `payment_reference`
-// (service-layer dedupe) and `correlation_id` (agent-layer dedupe), so a retry
-// after a timeout can never double-charge the customer.
-
-export function buildChargeReference(
-  employeeId: string | number,
-  now: Date = new Date(),
-): string {
-  const ts = now.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-  const rand = Math.random().toString(36).slice(2, 6).padEnd(4, '0');
-  return `charger-${employeeId}-${ts}-${rand}`;
-}
-
-const PENDING_REFS_KEY = 'charger-pending-refs-v1';
-const PENDING_REFS_MAX = 10;
-
-function loadPendingRefs(s?: Storage): Record<string, string> {
-  if (!s) return {};
-  try {
-    const raw = s.getItem(PENDING_REFS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(parsed)) {
-      if (typeof v === 'string') out[k] = v;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Reuse the same reference for the same subscription+plan until the charge
- * SUCCEEDS, so a retry after a network timeout is absorbed by ABS dedupe
- * instead of billing the customer twice. Survives unmount and refresh.
- */
-export function getOrCreatePendingChargeReference(
-  employeeId: string | number,
-  subscriptionCode: string,
-  productId: number,
-  storage?: Storage,
-): string {
-  const s = storage ?? (typeof window !== 'undefined' ? window.sessionStorage : undefined);
-  const key = `${subscriptionCode}::${productId}`;
-  const map = loadPendingRefs(s);
-  const existing = map[key];
-  if (existing) return existing;
-
-  const reference = buildChargeReference(employeeId);
-  const keys = Object.keys(map);
-  if (keys.length >= PENDING_REFS_MAX) delete map[keys[0]];
-  map[key] = reference;
-  try {
-    s?.setItem(PENDING_REFS_KEY, JSON.stringify(map));
-  } catch {
-    // private mode / quota — same-screen retries still dedupe in memory
-  }
-  return reference;
-}
-
-export function clearPendingChargeReference(
-  subscriptionCode: string,
-  productId: number,
-  storage?: Storage,
-): void {
-  const s = storage ?? (typeof window !== 'undefined' ? window.sessionStorage : undefined);
-  if (!s) return;
-  try {
-    const map = loadPendingRefs(s);
-    delete map[`${subscriptionCode}::${productId}`];
-    s.setItem(PENDING_REFS_KEY, JSON.stringify(map));
-  } catch {
-    // ignore
-  }
-}
 
 // ── Characteristic matching ────────────────────────────────────────────────
 
@@ -174,8 +94,9 @@ export interface RecentCharge {
   value: number;
   kwhBilled: number;
   chargerMac: string;
+  /** The mobile-money receipt this charge was paid with. */
   reference: string;
-  /** False when billing succeeded but the BLE write did not. */
+  /** False when the rider paid but the BLE write did not land. */
   dispensed: boolean;
   timestamp: string; // ISO
 }

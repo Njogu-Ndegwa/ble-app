@@ -1,94 +1,79 @@
 "use client";
 
 /**
- * Step 4 — bill the plan, then tell the charger to dispense.
+ * Step 5 — tell the charger to dispense what the rider already paid for.
  *
- * ORDER MATTERS. Billing settles first and dispensing second, because a charge
- * that was paid for but not delivered is recoverable (retry the BLE write)
- * whereas energy delivered but never billed is not. That asymmetry is also why
- * the two halves have separate retry paths: once `serviceTopup` has succeeded
- * the idempotency reference is consumed and the retry button re-sends ONLY the
- * BLE write — it can never bill the customer a second time.
+ * This step moves no money. By the time it renders, the rider's mobile-money
+ * payment has been verified by Odoo and credited to ABS, so every failure here
+ * is "paid but not delivered" — recoverable by re-sending the BLE write (or
+ * reconnecting first), never by charging again.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, BatteryCharging, Clock, Loader2, Zap } from 'lucide-react';
 
 import { useI18n } from '@/i18n';
-import { absApolloClient } from '@/lib/apollo-client';
-import { SERVICE_TOPUP, type ServiceTopupResponse } from '@/lib/graphql/mutations';
-import type { EmployeeUser } from '@/lib/attendant-auth';
 import { writeBleCharacteristic } from '@/app/utils';
-// Billing semantics are shared verbatim with the staff Top-Up applet so a
-// charge settles through exactly the same ABS path, with the same rejection
-// handling. Do not fork these.
-import { buildServiceTopupInput, assessTopupResponse } from '../../topup/lib/topup-core';
 import type { IdentifiedSub } from '../../topup/components/StepIdentify';
 import type { SelectedPlan } from '../../topup/components/StepPlan';
 import {
   appendRecentCharge,
   assessWriteResponse,
-  clearPendingChargeReference,
   deriveWriteValue,
-  getOrCreatePendingChargeReference,
   matchCharacteristic,
   type ChargeMode,
 } from '../lib/charger-core';
-import type { ConnectedCharger, GattCharacteristic } from '../lib/types';
+import type { ConnectedCharger, GattCharacteristic, PaidCharge } from '../lib/types';
 
 export interface ChargeReceipt {
-  reference: string;
+  receipt: string;
+  paymentMethod: string;
   mode: ChargeMode;
   /** Value written to the charger (kWh in energy mode, minutes in time mode). */
   value: number;
-  kwhBilled: number;
+  kwhCredited: number;
+  totalPaid: number;
   quotaBefore: number;
   quotaAfter: number;
   subscriptionCode: string;
   customerName: string | null;
   planName: string;
   currency: string;
-  price: number;
   chargerName: string;
   chargerMac: string;
   characteristicName: string;
-  /** False when billing succeeded but the charger never acknowledged the write. */
+  /** False when the rider paid but the charger never acknowledged the write. */
   dispensed: boolean;
   wasRetry?: boolean;
 }
 
 interface StepDispenseProps {
-  employee: EmployeeUser;
   sub: IdentifiedSub;
   plan: SelectedPlan;
   charger: ConnectedCharger;
-  onBack: () => void;
+  paid: PaidCharge;
+  onReconnect: () => void;
   onDone: (receipt: ChargeReceipt) => void;
 }
 
-type Phase = 'idle' | 'billing' | 'dispensing' | 'dispenseFailed';
-
 export default function StepDispense({
-  employee, sub, plan, charger, onBack, onDone,
+  sub, plan, charger, paid, onReconnect, onDone,
 }: StepDispenseProps) {
   const { t } = useI18n();
 
   const [mode, setMode] = useState<ChargeMode>('energy');
   const [minutes, setMinutes] = useState('');
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [sending, setSending] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [charOverride, setCharOverride] = useState<Partial<Record<ChargeMode, string>>>({});
-  /** Set once billing has succeeded, so a dispense retry never re-bills. */
-  const [billed, setBilled] = useState<{
-    quotaBefore: number; quotaAfter: number; wasRetry: boolean;
-  } | null>(null);
 
-  const reference = useMemo(
-    () => getOrCreatePendingChargeReference(employee.id, sub.subscriptionCode, plan.productId),
-    [employee.id, sub.subscriptionCode, plan.productId],
+  // Memoised so the `?? []` fallback doesn't produce a new array identity on
+  // every render and invalidate the memos below.
+  const characteristics: GattCharacteristic[] = useMemo(
+    () => charger.controlService.characteristicList ?? [],
+    [charger.controlService.characteristicList],
   );
-
-  const characteristics: GattCharacteristic[] = charger.controlService.characteristicList ?? [];
   const match = useMemo(() => matchCharacteristic(characteristics, mode), [characteristics, mode]);
 
   const activeCharacteristic: GattCharacteristic | undefined = useMemo(() => {
@@ -103,8 +88,6 @@ export default function StepDispense({
     return match.confident;
   }, [charOverride, mode, characteristics, match.confident]);
 
-  // A mode switch changes which characteristic is the target, so any half-typed
-  // value from the previous mode is discarded rather than silently reused.
   useEffect(() => { setError(null); }, [mode]);
 
   const writeValue = (() => {
@@ -115,62 +98,8 @@ export default function StepDispense({
     }
   })();
 
-  const dispense = useCallback(
-    (value: number, characteristic: GattCharacteristic, billedState: NonNullable<typeof billed>) => {
-      setPhase('dispensing');
-      writeBleCharacteristic(
-        charger.controlService.uuid,
-        characteristic.uuid,
-        value,
-        charger.macAddress,
-        (responseData: unknown) => {
-          const assessment = assessWriteResponse(responseData);
-          const receipt: ChargeReceipt = {
-            reference,
-            mode,
-            value,
-            kwhBilled: plan.declaredKwh,
-            quotaBefore: billedState.quotaBefore,
-            quotaAfter: billedState.quotaAfter,
-            subscriptionCode: sub.subscriptionCode,
-            customerName: sub.customerName,
-            planName: plan.name,
-            currency: sub.currency,
-            price: plan.price,
-            chargerName: charger.name,
-            chargerMac: charger.macAddress,
-            characteristicName: characteristic.name,
-            dispensed: assessment.ok,
-            wasRetry: billedState.wasRetry,
-          };
-          appendRecentCharge({
-            subscriptionCode: sub.subscriptionCode,
-            planName: plan.name,
-            mode,
-            value,
-            kwhBilled: plan.declaredKwh,
-            chargerMac: charger.macAddress,
-            reference,
-            dispensed: assessment.ok,
-            timestamp: new Date().toISOString(),
-          });
-          if (assessment.ok) {
-            setPhase('idle');
-            onDone(receipt);
-          } else {
-            // Billed but not dispensed. Stay on this screen and say so plainly —
-            // the operator must not walk away believing the charger started.
-            setPhase('dispenseFailed');
-            setError(assessment.error || t('charger.writeFailed'));
-          }
-        },
-      );
-    },
-    [charger, reference, mode, plan, sub, onDone, t],
-  );
-
-  const handleStart = useCallback(async () => {
-    if (phase === 'billing' || phase === 'dispensing') return;
+  const handleSend = useCallback(() => {
+    if (sending) return;
     setError(null);
 
     let value: number;
@@ -180,58 +109,59 @@ export default function StepDispense({
       setError(err instanceof Error ? err.message : t('charger.invalidAmount'));
       return;
     }
-    if (!activeCharacteristic) {
+    const characteristic = activeCharacteristic;
+    if (!characteristic) {
       setError(t('charger.pickCharacteristic'));
       return;
     }
 
-    // Already billed on a previous attempt — retry the write only.
-    if (billed) {
-      dispense(value, activeCharacteristic, billed);
-      return;
-    }
-
-    setPhase('billing');
-    try {
-      const input = buildServiceTopupInput({
-        subscriptionCode: sub.subscriptionCode,
-        energyServiceId: sub.energyServiceId,
-        planPrice: plan.price,
-        declaredKwh: plan.declaredKwh,
-        reference,
-      });
-      const result = await absApolloClient.mutate<{ serviceTopup: ServiceTopupResponse }>({
-        mutation: SERVICE_TOPUP,
-        variables: { input },
-      });
-      if (result.errors && result.errors.length > 0) {
-        throw new Error(result.errors[0].message || t('charger.billingFailed'));
-      }
-      const resp = result.data?.serviceTopup;
-      if (!resp) throw new Error(t('charger.noResponse'));
-
-      const assessment = assessTopupResponse(resp);
-      if (!assessment.ok) {
-        throw new Error(assessment.reason || t('charger.billingRejected'));
-      }
-
-      const billedState = {
-        quotaBefore: resp.quota_before ?? sub.energyRemaining,
-        quotaAfter: resp.quota_after ?? sub.energyRemaining + plan.declaredKwh,
-        wasRetry: assessment.isIdempotent,
-      };
-      clearPendingChargeReference(sub.subscriptionCode, plan.productId);
-      setBilled(billedState);
-      dispense(value, activeCharacteristic, billedState);
-    } catch (err) {
-      setPhase('idle');
-      setError(err instanceof Error ? err.message : t('charger.billingFailed'));
-    }
-  }, [
-    phase, mode, minutes, plan, activeCharacteristic, billed, sub, reference, dispense, t,
-  ]);
-
-  const busy = phase === 'billing' || phase === 'dispensing';
+    setSending(true);
+    writeBleCharacteristic(
+      charger.controlService.uuid,
+      characteristic.uuid,
+      value,
+      charger.macAddress,
+      (responseData: unknown) => {
+        setSending(false);
+        const assessment = assessWriteResponse(responseData);
+        appendRecentCharge({
+          subscriptionCode: sub.subscriptionCode,
+          planName: plan.name,
+          mode,
+          value,
+          kwhBilled: plan.declaredKwh,
+          chargerMac: charger.macAddress,
+          reference: paid.receipt,
+          dispensed: assessment.ok,
+          timestamp: new Date().toISOString(),
+        });
+        if (!assessment.ok) {
+          setFailed(true);
+          setError(assessment.error || t('charger.writeFailed'));
+          return;
+        }
+        onDone({
+          receipt: paid.receipt,
+          paymentMethod: paid.paymentMethod,
+          mode,
+          value,
+          kwhCredited: plan.declaredKwh,
+          totalPaid: paid.totalPaid,
+          quotaBefore: paid.quotaBefore,
+          quotaAfter: paid.quotaAfter,
+          subscriptionCode: sub.subscriptionCode,
+          customerName: sub.customerName,
+          planName: plan.name,
+          currency: sub.currency,
+          chargerName: charger.name,
+          chargerMac: charger.macAddress,
+          characteristicName: characteristic.name,
+          dispensed: true,
+          wasRetry: paid.wasRetry,
+        });
+      },
+    );
+  }, [sending, mode, minutes, plan, activeCharacteristic, charger, sub, paid, onDone, t]);
 
   const row = (label: string, value: React.ReactNode) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
@@ -251,6 +181,23 @@ export default function StepDispense({
         </p>
       </div>
 
+      {/* Paid banner — the rider's money is already in, make that unmissable. */}
+      <div
+        style={{
+          display: 'flex', gap: 8, alignItems: 'flex-start', padding: 12, fontSize: 13,
+          background: 'var(--accent-soft, rgba(34,197,94,.1))',
+          border: '1px solid var(--accent, #22c55e)', borderRadius: 'var(--radius-md)',
+        }}
+      >
+        <Zap size={14} style={{ flexShrink: 0, marginTop: 2, color: 'var(--accent)' }} />
+        <span>
+          {t('charger.paidBanner', {
+            amount: `${sub.currency ? `${sub.currency} ` : ''}${paid.totalPaid.toLocaleString()}`,
+            kwh: plan.declaredKwh.toLocaleString(),
+          })}
+        </span>
+      </div>
+
       {/* Mode selector */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {([
@@ -262,7 +209,7 @@ export default function StepDispense({
             <button
               key={m.id}
               type="button"
-              disabled={busy || !!billed}
+              disabled={sending}
               onClick={() => setMode(m.id)}
               style={{
                 padding: '14px 12px', borderRadius: 12,
@@ -270,7 +217,7 @@ export default function StepDispense({
                 background: active ? 'rgba(34,197,94,0.1)' : 'var(--bg-secondary, rgba(255,255,255,0.03))',
                 color: active ? '#22c55e' : 'var(--text-primary)',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                opacity: busy || billed ? 0.6 : 1,
+                opacity: sending ? 0.6 : 1,
               }}
             >
               {m.icon}
@@ -281,15 +228,10 @@ export default function StepDispense({
         })}
       </div>
 
-      {/* Time mode needs an operator-supplied duration; energy mode is derived
-          from the plan so there is nothing to type. */}
       {mode === 'time' && (
         <div>
           <label
-            style={{
-              display: 'block', fontSize: 13, fontWeight: 600,
-              color: 'var(--text-primary)', marginBottom: 8,
-            }}
+            style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}
           >
             {t('charger.chargingTime')}
           </label>
@@ -298,7 +240,7 @@ export default function StepDispense({
             inputMode="decimal"
             min={0}
             value={minutes}
-            disabled={busy}
+            disabled={sending}
             onChange={(e) => setMinutes(e.target.value)}
             placeholder="10"
             style={{
@@ -313,7 +255,7 @@ export default function StepDispense({
               <button
                 key={p}
                 type="button"
-                disabled={busy}
+                disabled={sending}
                 onClick={() => setMinutes(String(p))}
                 style={{
                   flex: 1, padding: '8px 0', borderRadius: 8, fontSize: 13, fontWeight: 600,
@@ -334,7 +276,6 @@ export default function StepDispense({
         </div>
       )}
 
-      {/* Review card */}
       <div
         style={{
           border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
@@ -343,32 +284,19 @@ export default function StepDispense({
         }}
       >
         {sub.customerName && row(t('charger.customer'), sub.customerName)}
-        {row(t('charger.subscriptionId'), sub.subscriptionCode)}
         {row(t('charger.plan'), plan.name)}
+        {row(t('charger.chargerLabel'), `${charger.name} · ${charger.macAddress}`)}
         {row(
-          t('charger.planValue'),
-          `${sub.currency ? `${sub.currency} ` : ''}${plan.price.toLocaleString()}`,
+          t('charger.willWrite'),
+          writeValue != null
+            ? `${writeValue.toLocaleString()} ${mode === 'time' ? t('charger.min') : 'kWh'}`
+            : '—',
         )}
-        {row(
-          t('charger.energyBilled'),
-          <span style={{ color: 'var(--accent)' }}>{`${plan.declaredKwh.toLocaleString()} kWh`}</span>,
-        )}
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-          {row(t('charger.chargerLabel'), `${charger.name} · ${charger.macAddress}`)}
-          {row(
-            t('charger.willWrite'),
-            writeValue != null
-              ? `${writeValue.toLocaleString()} ${mode === 'time' ? t('charger.min') : 'kWh'}`
-              : '—',
-          )}
-        </div>
       </div>
 
       {/* Target characteristic — explicit when the heuristics are ambiguous. */}
       <div>
-        <label
-          style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}
-        >
+        <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
           {t('charger.targetCharacteristic')}{' '}
           {activeCharacteristic && !charOverride[mode] && !match.ambiguous && (
             <span style={{ color: '#22c55e' }}>({t('charger.autoMatched')})</span>
@@ -376,7 +304,7 @@ export default function StepDispense({
         </label>
         <select
           value={activeCharacteristic?.uuid ?? ''}
-          disabled={busy}
+          disabled={sending}
           onChange={(e) => setCharOverride((prev) => ({ ...prev, [mode]: e.target.value }))}
           style={{
             width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 10,
@@ -399,9 +327,7 @@ export default function StepDispense({
         {match.ambiguous && !charOverride[mode] && (
           <p style={{ fontSize: 12, color: 'var(--warning, #eab308)', margin: '8px 0 0', lineHeight: 1.5 }}>
             <AlertCircle size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
-            {t('charger.ambiguousMatch', {
-              names: match.matches.map((m) => m.name).join(', '),
-            })}
+            {t('charger.ambiguousMatch', { names: match.matches.map((m) => m.name).join(', ') })}
           </p>
         )}
         {!activeCharacteristic && !match.ambiguous && characteristics.length > 0 && (
@@ -412,29 +338,27 @@ export default function StepDispense({
         )}
       </div>
 
-      {/* Billed-but-not-dispensed is its own state, not a generic error. */}
-      {phase === 'dispenseFailed' && (
+      {failed && (
         <div
           role="alert"
           style={{
             display: 'flex', flexDirection: 'column', gap: 6, padding: 12, fontSize: 13,
-            background: 'var(--warning-soft, rgba(234,179,8,.12))',
-            color: 'var(--text-primary)',
+            background: 'var(--warning-soft, rgba(234,179,8,.12))', color: 'var(--text-primary)',
             border: '1px solid var(--warning, #eab308)', borderRadius: 'var(--radius-md)',
           }}
         >
           <strong style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <AlertCircle size={14} />
-            {t('charger.billedNotDispensed')}
+            {t('charger.paidNotDispensed')}
           </strong>
           <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-            {t('charger.billedNotDispensedHint')}
+            {t('charger.paidNotDispensedHint')}
           </span>
           {error && <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{error}</span>}
         </div>
       )}
 
-      {error && phase !== 'dispenseFailed' && (
+      {error && !failed && (
         <div
           role="alert"
           style={{
@@ -453,38 +377,36 @@ export default function StepDispense({
         <button
           type="button"
           className="btn btn-primary"
-          onClick={handleStart}
-          disabled={busy || writeValue == null || !activeCharacteristic}
-          aria-busy={busy}
+          onClick={handleSend}
+          disabled={sending || writeValue == null || !activeCharacteristic}
+          aria-busy={sending}
           style={{
             width: '100%', padding: '16px 0', fontSize: 16, fontWeight: 700,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}
         >
-          {busy ? (
+          {sending ? (
             <>
               <Loader2 size={18} className="animate-spin" />
-              {phase === 'billing' ? t('charger.billing') : t('charger.sending')}
+              {t('charger.sending')}
             </>
           ) : (
             <>
               <BatteryCharging size={18} />
-              {billed ? t('charger.retryDispense') : t('charger.billAndStart')}
+              {failed ? t('charger.retryDispense') : t('charger.startCharging')}
             </>
           )}
         </button>
+        {/* A BLE session can drop while the rider is paying, so reconnecting is
+            a first-class recovery — the payment is preserved across it. */}
         <button
           type="button"
-          onClick={onBack}
-          disabled={busy || !!billed}
-          style={{
-            width: '100%', padding: '8px 0', background: 'transparent', border: 'none',
-            color: 'var(--text-secondary)', fontSize: 13,
-            cursor: busy || billed ? 'not-allowed' : 'pointer',
-            opacity: busy || billed ? 0.5 : 1,
-          }}
+          className="btn btn-secondary"
+          onClick={onReconnect}
+          disabled={sending}
+          style={{ width: '100%' }}
         >
-          {t('sales.back') || 'Back'}
+          {t('charger.reconnectCharger')}
         </button>
       </div>
     </div>

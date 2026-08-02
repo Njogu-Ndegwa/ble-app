@@ -3,16 +3,19 @@
 /**
  * Charger Control flow.
  *
- * identify → plan → connect → dispense → done
+ * identify → plan → connect → pay → dispense → done
  *
  * The first two steps are the staff Top-Up applet's own components, reused
  * rather than reimplemented: Esther specified that charger output is billed
  * "like a swap — it needs billing and a specified subscription plan", so the
- * customer lookup, the package→plan narrowing and the quota lookup must behave
- * identically to the top-up path, not merely similarly.
+ * customer lookup, the package→plan narrowing and the ABS quota lookup must
+ * behave identically to the top-up path, not merely similarly.
  *
- * Connecting to the charger comes AFTER the plan is chosen so the operator
- * cannot end up holding a live BLE session with no way to bill for it.
+ * Connecting comes BEFORE paying so the charger is known to be reachable
+ * before the rider spends money. Paying comes before dispensing so energy is
+ * never given away. If the BLE session drops during the payment wait, the
+ * dispense step can reconnect without disturbing the completed payment —
+ * which is why `paid` lives here rather than inside a step.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -21,32 +24,43 @@ import type { EmployeeUser } from '@/lib/attendant-auth';
 import StepIdentify, { type IdentifiedSub } from '../topup/components/StepIdentify';
 import StepPlan, { type SelectedPlan } from '../topup/components/StepPlan';
 import StepConnect from './components/StepConnect';
+import StepPay from './components/StepPay';
 import StepDispense, { type ChargeReceipt } from './components/StepDispense';
 import StepDone from './components/StepDone';
-import type { ConnectedCharger } from './lib/types';
+import type { ConnectedCharger, PaidCharge } from './lib/types';
 
-export type ChargerStep = 'identify' | 'plan' | 'connect' | 'dispense' | 'done';
+export type ChargerStep = 'identify' | 'plan' | 'connect' | 'pay' | 'dispense' | 'done';
 
-const STEP_ORDER: ChargerStep[] = ['identify', 'plan', 'connect', 'dispense', 'done'];
+const STEP_ORDER: ChargerStep[] = ['identify', 'plan', 'connect', 'pay', 'dispense', 'done'];
 
 interface ChargerFlowProps {
+  // Kept for parity with the other applets' flows; the rider pays for
+  // themselves here, so no employee id ends up on the money path.
   employee: EmployeeUser;
 }
 
-export default function ChargerFlow({ employee }: ChargerFlowProps) {
+export default function ChargerFlow({ employee: _employee }: ChargerFlowProps) {
   const { t } = useI18n();
   const [step, setStep] = useState<ChargerStep>('identify');
   const [sub, setSub] = useState<IdentifiedSub | null>(null);
   const [plan, setPlan] = useState<SelectedPlan | null>(null);
   const [charger, setCharger] = useState<ConnectedCharger | null>(null);
+  const [paid, setPaid] = useState<PaidCharge | null>(null);
   const [receipt, setReceipt] = useState<ChargeReceipt | null>(null);
 
   const reset = useCallback(() => {
     setSub(null);
     setPlan(null);
     setCharger(null);
+    setPaid(null);
     setReceipt(null);
     setStep('identify');
+  }, []);
+
+  /** Re-run the connect step, keeping a completed payment intact. */
+  const reconnect = useCallback(() => {
+    setCharger(null);
+    setStep('connect');
   }, []);
 
   const stepIndex = STEP_ORDER.indexOf(step);
@@ -105,18 +119,27 @@ export default function ChargerFlow({ employee }: ChargerFlowProps) {
 
       {step === 'connect' && sub && plan && (
         <StepConnect
-          onBack={() => setStep('plan')}
-          onConnected={(c) => { setCharger(c); setStep('dispense'); }}
+          onBack={() => setStep(paid ? 'dispense' : 'plan')}
+          onConnected={(c) => { setCharger(c); setStep(paid ? 'dispense' : 'pay'); }}
         />
       )}
 
-      {step === 'dispense' && sub && plan && charger && (
+      {step === 'pay' && sub && plan && (
+        <StepPay
+          sub={sub}
+          plan={plan}
+          onBack={() => setStep('connect')}
+          onPaid={(p) => { setPaid(p); setStep('dispense'); }}
+        />
+      )}
+
+      {step === 'dispense' && sub && plan && charger && paid && (
         <StepDispense
-          employee={employee}
           sub={sub}
           plan={plan}
           charger={charger}
-          onBack={() => setStep('connect')}
+          paid={paid}
+          onReconnect={reconnect}
           onDone={(r) => { setReceipt(r); setStep('done'); }}
         />
       )}

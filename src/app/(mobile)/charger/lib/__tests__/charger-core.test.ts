@@ -2,10 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   appendRecentCharge,
   assessWriteResponse,
-  buildChargeReference,
-  clearPendingChargeReference,
   deriveWriteValue,
-  getOrCreatePendingChargeReference,
   loadRecentCharges,
   matchCharacteristic,
 } from '../charger-core';
@@ -100,35 +97,6 @@ describe('assessWriteResponse', () => {
 
   it('surfaces the device-reported reason', () => {
     expect(assessWriteResponse('{"respCode":"11","respDesc":"device busy"}').error).toBe('device busy');
-  });
-});
-
-describe('charge reference idempotency', () => {
-  let storage: Storage;
-  beforeEach(() => { storage = memStorage(); });
-
-  it('reuses the same reference for the same subscription+plan', () => {
-    const a = getOrCreatePendingChargeReference(7, 'SUB-1', 42, storage);
-    const b = getOrCreatePendingChargeReference(7, 'SUB-1', 42, storage);
-    expect(b).toBe(a);
-  });
-
-  it('keeps different plans on different references', () => {
-    const a = getOrCreatePendingChargeReference(7, 'SUB-1', 42, storage);
-    const b = getOrCreatePendingChargeReference(7, 'SUB-1', 43, storage);
-    expect(b).not.toBe(a);
-    // ...and viewing the second plan must not disturb the first
-    expect(getOrCreatePendingChargeReference(7, 'SUB-1', 42, storage)).toBe(a);
-  });
-
-  it('issues a fresh reference after a successful charge is cleared', () => {
-    const a = getOrCreatePendingChargeReference(7, 'SUB-1', 42, storage);
-    clearPendingChargeReference('SUB-1', 42, storage);
-    expect(getOrCreatePendingChargeReference(7, 'SUB-1', 42, storage)).not.toBe(a);
-  });
-
-  it('embeds the employee id for the audit trail', () => {
-    expect(buildChargeReference(99, new Date('2026-08-02T10:00:00Z'))).toMatch(/^charger-99-20260802100000-/);
   });
 });
 

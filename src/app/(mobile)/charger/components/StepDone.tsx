@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Step 5 — receipt.
+ * Step 6 — receipt.
  *
- * Renders two visually distinct outcomes. A charge that was billed but never
- * acknowledged by the charger is NOT shown as a success: the operator needs to
- * see immediately that the customer has been charged and has nothing to show
- * for it, along with the reference to quote when it is sorted out.
+ * Renders two visually distinct outcomes. A charge the rider paid for but the
+ * charger never acknowledged is NOT shown as a success: the operator needs to
+ * see immediately that money has been taken with nothing delivered, along with
+ * the mobile-money reference to quote when it is sorted out.
  */
 
 import React from 'react';
@@ -22,6 +22,7 @@ interface StepDoneProps {
 export default function StepDone({ receipt, onRestart }: StepDoneProps) {
   const { t } = useI18n();
   const ok = receipt.dispensed;
+  const cur = receipt.currency ? `${receipt.currency} ` : '';
 
   const row = (label: string, value: React.ReactNode) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
@@ -60,13 +61,11 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
         {receipt.customerName && row(t('charger.customer'), receipt.customerName)}
         {row(t('charger.subscriptionId'), receipt.subscriptionCode)}
         {row(t('charger.plan'), receipt.planName)}
+        {row(t('charger.amountPaid'), `${cur}${receipt.totalPaid.toLocaleString()}`)}
+        {row(t('charger.paymentMethod'), receipt.paymentMethod)}
         {row(
-          t('charger.planValue'),
-          `${receipt.currency ? `${receipt.currency} ` : ''}${receipt.price.toLocaleString()}`,
-        )}
-        {row(
-          t('charger.energyBilled'),
-          <span style={{ color: 'var(--accent)' }}>{`${receipt.kwhBilled.toLocaleString()} kWh`}</span>,
+          t('charger.energyCredited'),
+          <span style={{ color: 'var(--accent)' }}>{`${receipt.kwhCredited.toLocaleString()} kWh`}</span>,
         )}
         {row(
           t('charger.balanceChange'),
@@ -85,7 +84,7 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
             ),
           )}
           {row(t('charger.characteristic'), <code>{receipt.characteristicName}</code>)}
-          {row(t('charger.reference'), <code style={{ fontSize: 11 }}>{receipt.reference}</code>)}
+          {row(t('charger.reference'), <code style={{ fontSize: 11 }}>{receipt.receipt}</code>)}
         </div>
       </div>
 
