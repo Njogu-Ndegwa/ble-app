@@ -211,13 +211,17 @@
 
 /* Un-migrated applets (and the deliberately phone-shaped ones: rider,
    keypad, BLE tools) keep their bottom tab bar on wide screens — center it
-   over the content column instead of smearing tabs across the viewport. */
-@media (min-width: 720px) {
-  .bottom-nav {
-    width: 100%;
-    max-width: var(--shell-width);
-    margin: 0 auto;
-  }
+   over the content column instead of smearing tabs across the viewport.
+
+   Deliberately NOT gated behind a media query. Between the 430px content cap
+   and the 720px tablet breakpoint the cap binds but a gated rule would not, so
+   a 600px 7" tablet drew a full-width 600px tab bar under a 430px column.
+   Ungated, the max-width simply never binds below 430px — every phone is
+   untouched, and the band in between now lines up too. */
+.bottom-nav {
+  width: 100%;
+  max-width: var(--shell-width);
+  margin: 0 auto;
 }
 
 .nav-rail {
