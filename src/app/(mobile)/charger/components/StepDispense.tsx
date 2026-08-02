@@ -1,0 +1,492 @@
+"use client";
+
+/**
+ * Step 4 — bill the plan, then tell the charger to dispense.
+ *
+ * ORDER MATTERS. Billing settles first and dispensing second, because a charge
+ * that was paid for but not delivered is recoverable (retry the BLE write)
+ * whereas energy delivered but never billed is not. That asymmetry is also why
+ * the two halves have separate retry paths: once `serviceTopup` has succeeded
+ * the idempotency reference is consumed and the retry button re-sends ONLY the
+ * BLE write — it can never bill the customer a second time.
+ */
+
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, BatteryCharging, Clock, Loader2, Zap } from 'lucide-react';
+
+import { useI18n } from '@/i18n';
+import { absApolloClient } from '@/lib/apollo-client';
+import { SERVICE_TOPUP, type ServiceTopupResponse } from '@/lib/graphql/mutations';
+import type { EmployeeUser } from '@/lib/attendant-auth';
+import { writeBleCharacteristic } from '@/app/utils';
+// Billing semantics are shared verbatim with the staff Top-Up applet so a
+// charge settles through exactly the same ABS path, with the same rejection
+// handling. Do not fork these.
+import { buildServiceTopupInput, assessTopupResponse } from '../../topup/lib/topup-core';
+import type { IdentifiedSub } from '../../topup/components/StepIdentify';
+import type { SelectedPlan } from '../../topup/components/StepPlan';
+import {
+  appendRecentCharge,
+  assessWriteResponse,
+  clearPendingChargeReference,
+  deriveWriteValue,
+  getOrCreatePendingChargeReference,
+  matchCharacteristic,
+  type ChargeMode,
+} from '../lib/charger-core';
+import type { ConnectedCharger, GattCharacteristic } from '../lib/types';
+
+export interface ChargeReceipt {
+  reference: string;
+  mode: ChargeMode;
+  /** Value written to the charger (kWh in energy mode, minutes in time mode). */
+  value: number;
+  kwhBilled: number;
+  quotaBefore: number;
+  quotaAfter: number;
+  subscriptionCode: string;
+  customerName: string | null;
+  planName: string;
+  currency: string;
+  price: number;
+  chargerName: string;
+  chargerMac: string;
+  characteristicName: string;
+  /** False when billing succeeded but the charger never acknowledged the write. */
+  dispensed: boolean;
+  wasRetry?: boolean;
+}
+
+interface StepDispenseProps {
+  employee: EmployeeUser;
+  sub: IdentifiedSub;
+  plan: SelectedPlan;
+  charger: ConnectedCharger;
+  onBack: () => void;
+  onDone: (receipt: ChargeReceipt) => void;
+}
+
+type Phase = 'idle' | 'billing' | 'dispensing' | 'dispenseFailed';
+
+export default function StepDispense({
+  employee, sub, plan, charger, onBack, onDone,
+}: StepDispenseProps) {
+  const { t } = useI18n();
+
+  const [mode, setMode] = useState<ChargeMode>('energy');
+  const [minutes, setMinutes] = useState('');
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [charOverride, setCharOverride] = useState<Partial<Record<ChargeMode, string>>>({});
+  /** Set once billing has succeeded, so a dispense retry never re-bills. */
+  const [billed, setBilled] = useState<{
+    quotaBefore: number; quotaAfter: number; wasRetry: boolean;
+  } | null>(null);
+
+  const reference = useMemo(
+    () => getOrCreatePendingChargeReference(employee.id, sub.subscriptionCode, plan.productId),
+    [employee.id, sub.subscriptionCode, plan.productId],
+  );
+
+  const characteristics: GattCharacteristic[] = charger.controlService.characteristicList ?? [];
+  const match = useMemo(() => matchCharacteristic(characteristics, mode), [characteristics, mode]);
+
+  const activeCharacteristic: GattCharacteristic | undefined = useMemo(() => {
+    const overrideUuid = charOverride[mode];
+    if (overrideUuid) {
+      const c = characteristics.find((ch) => ch.uuid === overrideUuid);
+      if (c) return c;
+    }
+    // Only a single unambiguous hit is auto-selected. When several
+    // characteristics match the (provisional) name heuristics we deliberately
+    // select nothing and make the operator choose — see charger-core.
+    return match.confident;
+  }, [charOverride, mode, characteristics, match.confident]);
+
+  // A mode switch changes which characteristic is the target, so any half-typed
+  // value from the previous mode is discarded rather than silently reused.
+  useEffect(() => { setError(null); }, [mode]);
+
+  const writeValue = (() => {
+    try {
+      return deriveWriteValue({ mode, declaredKwh: plan.declaredKwh, minutes: Number(minutes) });
+    } catch {
+      return null;
+    }
+  })();
+
+  const dispense = useCallback(
+    (value: number, characteristic: GattCharacteristic, billedState: NonNullable<typeof billed>) => {
+      setPhase('dispensing');
+      writeBleCharacteristic(
+        charger.controlService.uuid,
+        characteristic.uuid,
+        value,
+        charger.macAddress,
+        (responseData: unknown) => {
+          const assessment = assessWriteResponse(responseData);
+          const receipt: ChargeReceipt = {
+            reference,
+            mode,
+            value,
+            kwhBilled: plan.declaredKwh,
+            quotaBefore: billedState.quotaBefore,
+            quotaAfter: billedState.quotaAfter,
+            subscriptionCode: sub.subscriptionCode,
+            customerName: sub.customerName,
+            planName: plan.name,
+            currency: sub.currency,
+            price: plan.price,
+            chargerName: charger.name,
+            chargerMac: charger.macAddress,
+            characteristicName: characteristic.name,
+            dispensed: assessment.ok,
+            wasRetry: billedState.wasRetry,
+          };
+          appendRecentCharge({
+            subscriptionCode: sub.subscriptionCode,
+            planName: plan.name,
+            mode,
+            value,
+            kwhBilled: plan.declaredKwh,
+            chargerMac: charger.macAddress,
+            reference,
+            dispensed: assessment.ok,
+            timestamp: new Date().toISOString(),
+          });
+          if (assessment.ok) {
+            setPhase('idle');
+            onDone(receipt);
+          } else {
+            // Billed but not dispensed. Stay on this screen and say so plainly —
+            // the operator must not walk away believing the charger started.
+            setPhase('dispenseFailed');
+            setError(assessment.error || t('charger.writeFailed'));
+          }
+        },
+      );
+    },
+    [charger, reference, mode, plan, sub, onDone, t],
+  );
+
+  const handleStart = useCallback(async () => {
+    if (phase === 'billing' || phase === 'dispensing') return;
+    setError(null);
+
+    let value: number;
+    try {
+      value = deriveWriteValue({ mode, declaredKwh: plan.declaredKwh, minutes: Number(minutes) });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('charger.invalidAmount'));
+      return;
+    }
+    if (!activeCharacteristic) {
+      setError(t('charger.pickCharacteristic'));
+      return;
+    }
+
+    // Already billed on a previous attempt — retry the write only.
+    if (billed) {
+      dispense(value, activeCharacteristic, billed);
+      return;
+    }
+
+    setPhase('billing');
+    try {
+      const input = buildServiceTopupInput({
+        subscriptionCode: sub.subscriptionCode,
+        energyServiceId: sub.energyServiceId,
+        planPrice: plan.price,
+        declaredKwh: plan.declaredKwh,
+        reference,
+      });
+      const result = await absApolloClient.mutate<{ serviceTopup: ServiceTopupResponse }>({
+        mutation: SERVICE_TOPUP,
+        variables: { input },
+      });
+      if (result.errors && result.errors.length > 0) {
+        throw new Error(result.errors[0].message || t('charger.billingFailed'));
+      }
+      const resp = result.data?.serviceTopup;
+      if (!resp) throw new Error(t('charger.noResponse'));
+
+      const assessment = assessTopupResponse(resp);
+      if (!assessment.ok) {
+        throw new Error(assessment.reason || t('charger.billingRejected'));
+      }
+
+      const billedState = {
+        quotaBefore: resp.quota_before ?? sub.energyRemaining,
+        quotaAfter: resp.quota_after ?? sub.energyRemaining + plan.declaredKwh,
+        wasRetry: assessment.isIdempotent,
+      };
+      clearPendingChargeReference(sub.subscriptionCode, plan.productId);
+      setBilled(billedState);
+      dispense(value, activeCharacteristic, billedState);
+    } catch (err) {
+      setPhase('idle');
+      setError(err instanceof Error ? err.message : t('charger.billingFailed'));
+    }
+  }, [
+    phase, mode, minutes, plan, activeCharacteristic, billed, sub, reference, dispense, t,
+  ]);
+
+  const busy = phase === 'billing' || phase === 'dispensing';
+
+  const row = (label: string, value: React.ReactNode) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+      <span style={{ color: 'var(--text-primary)', fontWeight: 600, textAlign: 'right' }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+          {t('charger.dispenseTitle')}
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+          {t('charger.dispenseHint')}
+        </p>
+      </div>
+
+      {/* Mode selector */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {([
+          { id: 'energy' as ChargeMode, icon: <Zap size={18} />, label: t('charger.byEnergy'), unit: 'kWh' },
+          { id: 'time' as ChargeMode, icon: <Clock size={18} />, label: t('charger.byTime'), unit: t('charger.minutes') },
+        ]).map((m) => {
+          const active = mode === m.id;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              disabled={busy || !!billed}
+              onClick={() => setMode(m.id)}
+              style={{
+                padding: '14px 12px', borderRadius: 12,
+                border: active ? '1.5px solid #22c55e' : '1px solid var(--border-primary, #333)',
+                background: active ? 'rgba(34,197,94,0.1)' : 'var(--bg-secondary, rgba(255,255,255,0.03))',
+                color: active ? '#22c55e' : 'var(--text-primary)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                opacity: busy || billed ? 0.6 : 1,
+              }}
+            >
+              {m.icon}
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{m.label}</span>
+              <span style={{ fontSize: 11, opacity: 0.7 }}>{m.unit}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Time mode needs an operator-supplied duration; energy mode is derived
+          from the plan so there is nothing to type. */}
+      {mode === 'time' && (
+        <div>
+          <label
+            style={{
+              display: 'block', fontSize: 13, fontWeight: 600,
+              color: 'var(--text-primary)', marginBottom: 8,
+            }}
+          >
+            {t('charger.chargingTime')}
+          </label>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            value={minutes}
+            disabled={busy}
+            onChange={(e) => setMinutes(e.target.value)}
+            placeholder="10"
+            style={{
+              width: '100%', padding: '14px 16px', fontSize: 18, fontWeight: 600,
+              borderRadius: 12, border: '1px solid var(--border-primary, #333)',
+              background: 'var(--bg-secondary, rgba(255,255,255,0.03))',
+              color: 'var(--text-primary)', outline: 'none',
+            }}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            {[10, 30, 60].map((p) => (
+              <button
+                key={p}
+                type="button"
+                disabled={busy}
+                onClick={() => setMinutes(String(p))}
+                style={{
+                  flex: 1, padding: '8px 0', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  border: '1px solid var(--border-primary, #333)',
+                  background: minutes === String(p)
+                    ? 'rgba(34,197,94,0.15)' : 'var(--bg-secondary, rgba(255,255,255,0.03))',
+                  color: minutes === String(p) ? '#22c55e' : 'var(--text-primary)',
+                }}
+              >
+                {p} {t('charger.min')}
+              </button>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--warning, #eab308)', margin: '10px 0 0', lineHeight: 1.5 }}>
+            <AlertCircle size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+            {t('charger.timeModeWarning')}
+          </p>
+        </div>
+      )}
+
+      {/* Review card */}
+      <div
+        style={{
+          border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+          background: 'var(--bg-secondary)', padding: 16,
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}
+      >
+        {sub.customerName && row(t('charger.customer'), sub.customerName)}
+        {row(t('charger.subscriptionId'), sub.subscriptionCode)}
+        {row(t('charger.plan'), plan.name)}
+        {row(
+          t('charger.planValue'),
+          `${sub.currency ? `${sub.currency} ` : ''}${plan.price.toLocaleString()}`,
+        )}
+        {row(
+          t('charger.energyBilled'),
+          <span style={{ color: 'var(--accent)' }}>{`${plan.declaredKwh.toLocaleString()} kWh`}</span>,
+        )}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+          {row(t('charger.chargerLabel'), `${charger.name} · ${charger.macAddress}`)}
+          {row(
+            t('charger.willWrite'),
+            writeValue != null
+              ? `${writeValue.toLocaleString()} ${mode === 'time' ? t('charger.min') : 'kWh'}`
+              : '—',
+          )}
+        </div>
+      </div>
+
+      {/* Target characteristic — explicit when the heuristics are ambiguous. */}
+      <div>
+        <label
+          style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}
+        >
+          {t('charger.targetCharacteristic')}{' '}
+          {activeCharacteristic && !charOverride[mode] && !match.ambiguous && (
+            <span style={{ color: '#22c55e' }}>({t('charger.autoMatched')})</span>
+          )}
+        </label>
+        <select
+          value={activeCharacteristic?.uuid ?? ''}
+          disabled={busy}
+          onChange={(e) => setCharOverride((prev) => ({ ...prev, [mode]: e.target.value }))}
+          style={{
+            width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 10,
+            border: match.ambiguous && !charOverride[mode]
+              ? '1px solid var(--warning, #eab308)'
+              : '1px solid var(--border-primary, #333)',
+            background: 'var(--bg-secondary, rgba(255,255,255,0.03))',
+            color: 'var(--text-primary)',
+          }}
+        >
+          <option value="" disabled>
+            {characteristics.length === 0
+              ? t('charger.noCharacteristics')
+              : t('charger.selectCharacteristic')}
+          </option>
+          {characteristics.map((c) => (
+            <option key={c.uuid} value={c.uuid}>{c.name}</option>
+          ))}
+        </select>
+        {match.ambiguous && !charOverride[mode] && (
+          <p style={{ fontSize: 12, color: 'var(--warning, #eab308)', margin: '8px 0 0', lineHeight: 1.5 }}>
+            <AlertCircle size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+            {t('charger.ambiguousMatch', {
+              names: match.matches.map((m) => m.name).join(', '),
+            })}
+          </p>
+        )}
+        {!activeCharacteristic && !match.ambiguous && characteristics.length > 0 && (
+          <p style={{ fontSize: 12, color: 'var(--warning, #eab308)', margin: '8px 0 0', lineHeight: 1.5 }}>
+            <AlertCircle size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+            {t('charger.noMatch')}
+          </p>
+        )}
+      </div>
+
+      {/* Billed-but-not-dispensed is its own state, not a generic error. */}
+      {phase === 'dispenseFailed' && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex', flexDirection: 'column', gap: 6, padding: 12, fontSize: 13,
+            background: 'var(--warning-soft, rgba(234,179,8,.12))',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--warning, #eab308)', borderRadius: 'var(--radius-md)',
+          }}
+        >
+          <strong style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <AlertCircle size={14} />
+            {t('charger.billedNotDispensed')}
+          </strong>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+            {t('charger.billedNotDispensedHint')}
+          </span>
+          {error && <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{error}</span>}
+        </div>
+      )}
+
+      {error && phase !== 'dispenseFailed' && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex', gap: 8, padding: 12, fontSize: 13,
+            background: 'var(--error-soft, var(--bg-secondary))',
+            color: 'var(--error, var(--text-primary))',
+            border: '1px solid var(--error, var(--border))', borderRadius: 'var(--radius-md)',
+          }}
+        >
+          <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={handleStart}
+          disabled={busy || writeValue == null || !activeCharacteristic}
+          aria-busy={busy}
+          style={{
+            width: '100%', padding: '16px 0', fontSize: 16, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          {busy ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              {phase === 'billing' ? t('charger.billing') : t('charger.sending')}
+            </>
+          ) : (
+            <>
+              <BatteryCharging size={18} />
+              {billed ? t('charger.retryDispense') : t('charger.billAndStart')}
+            </>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={busy || !!billed}
+          style={{
+            width: '100%', padding: '8px 0', background: 'transparent', border: 'none',
+            color: 'var(--text-secondary)', fontSize: 13,
+            cursor: busy || billed ? 'not-allowed' : 'pointer',
+            opacity: busy || billed ? 0.5 : 1,
+          }}
+        >
+          {t('sales.back') || 'Back'}
+        </button>
+      </div>
+    </div>
+  );
+}

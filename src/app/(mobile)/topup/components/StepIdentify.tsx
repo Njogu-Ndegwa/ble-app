@@ -39,11 +39,25 @@ export interface IdentifiedSub {
 
 interface StepIdentifyProps {
   onIdentified: (sub: IdentifiedSub) => void;
+  /**
+   * Optional overrides so other applets that must identify a subscription the
+   * exact same way (Charger Control) can reuse this step verbatim while still
+   * showing their own wording. Defaults keep the Top-Up behaviour unchanged.
+   */
+  title?: string;
+  hint?: string;
+  /** Recent top-ups are Top-Up-specific; other applets hide the list. */
+  showRecent?: boolean;
 }
 
 type InputMode = 'scan' | 'manual';
 
-export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
+export default function StepIdentify({
+  onIdentified,
+  title,
+  hint,
+  showRecent = true,
+}: StepIdentifyProps) {
   const { t } = useI18n();
   const [inputMode, setInputMode] = useState<InputMode>('scan');
   const [subInput, setSubInput] = useState('');
@@ -229,10 +243,10 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-          {t('topup.identifyTitle') || 'Find subscription'}
+          {title || t('topup.identifyTitle') || 'Find subscription'}
         </h2>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-          {t('topup.identifyHint') || 'Scan or enter the customer’s subscription ID to begin.'}
+          {hint || t('topup.identifyHint') || 'Scan or enter the customer’s subscription ID to begin.'}
         </p>
       </div>
 
@@ -411,7 +425,7 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
         </div>
       )}
 
-      <RecentTopups />
+      {showRecent && <RecentTopups />}
     </div>
   );
 }

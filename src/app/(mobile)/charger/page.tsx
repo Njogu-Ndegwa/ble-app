@@ -1,7 +1,208 @@
-"use client";
+'use client';
 
-import ChargerApp from './ChargerApp';
+/**
+ * Charger Control page shell — mirrors the Top-Up applet's shell.
+ *
+ * The MVP had no sign-in gate because it only wrote to BLE. Now that a charge
+ * is billed against a subscription plan, the applet needs the staff token (Odoo
+ * plan catalog) and an active Service Account, so it takes the same
+ * login → select-SA → app path every other billing applet uses.
+ */
 
-export default function Page() {
-  return <ChargerApp />;
+import React, { useState, useCallback, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import { Toaster } from 'react-hot-toast';
+import {
+  isSalesRoleLoggedIn,
+  getSalesRoleUser,
+  getSalesRoleToken,
+  clearSalesRoleLogin,
+  type EmployeeUser,
+} from '@/lib/attendant-auth';
+import { clearSalesSession } from '@/lib/sales-session';
+import {
+  fetchMyServiceAccounts,
+  saveSelectedSA,
+  getSelectedSAId,
+  hasSASelected,
+  clearSelectedSA,
+} from '@/lib/sa-auth';
+import type { ServiceAccount } from '@/lib/sa-types';
+
+const AppLoadingFallback = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', flexDirection: 'column', gap: 16, background: 'var(--bg-primary, #0a0a0a)' }}>
+    <div className="loading-spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
+  </div>
+);
+
+const ChargerApp = dynamic(() => import('./ChargerApp'), {
+  loading: AppLoadingFallback,
+  ssr: false,
+});
+
+const Login = dynamic(() => import('../attendant/attendant/login'), {
+  loading: AppLoadingFallback,
+  ssr: false,
+});
+
+const SelectServiceAccount = dynamic(() => import('@/components/ui/SelectServiceAccount'), {
+  loading: AppLoadingFallback,
+  ssr: false,
+});
+
+type Screen = 'login' | 'selectSA' | 'app';
+
+function getInitialScreen(): { screen: Screen; user: EmployeeUser | null } {
+  if (typeof window === 'undefined') return { screen: 'login', user: null };
+  try {
+    if (!isSalesRoleLoggedIn()) {
+      clearSalesSession();
+      return { screen: 'login', user: null };
+    }
+    const user = getSalesRoleUser();
+    if (!user) {
+      clearSalesSession();
+      return { screen: 'login', user: null };
+    }
+    if (hasSASelected('sales')) return { screen: 'app', user };
+    return { screen: 'selectSA', user };
+  } catch {
+    clearSalesRoleLogin();
+    clearSalesSession();
+    return { screen: 'login', user: null };
+  }
+}
+
+export default function ChargerPage() {
+  const router = useRouter();
+  const [screen, setScreen] = useState<Screen>(() => getInitialScreen().screen);
+  const [user, setUser] = useState<EmployeeUser | null>(() => getInitialScreen().user);
+
+  useEffect(() => {
+    if (screen === 'login') router.replace('/signin');
+  }, [screen, router]);
+
+  const [saAccounts, setSaAccounts] = useState<ServiceAccount[]>([]);
+  const [saLoading, setSaLoading] = useState(false);
+  const [saErrorKind, setSaErrorKind] = useState<'noAccounts' | 'loadFailed' | null>(null);
+
+  const loadServiceAccounts = useCallback(async (token: string) => {
+    setSaLoading(true);
+    setSaErrorKind(null);
+    try {
+      const res = await fetchMyServiceAccounts(token);
+      const accounts = res.service_accounts ?? [];
+      setSaAccounts(accounts);
+
+      if (accounts.length === 0) {
+        setSaErrorKind('noAccounts');
+        setScreen('selectSA');
+        return;
+      }
+      if (accounts.length === 1 && res.auto_selected) {
+        saveSelectedSA('sales', accounts[0]);
+        setScreen('app');
+        return;
+      }
+      setScreen('selectSA');
+    } catch (err) {
+      console.error('[ChargerPage] Failed to load SAs:', err);
+      setSaErrorKind('loadFailed');
+      setScreen('selectSA');
+    } finally {
+      setSaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (screen === 'selectSA' && saAccounts.length === 0 && !saLoading) {
+      const token = getSalesRoleToken();
+      if (token) loadServiceAccounts(token);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleLoginSuccess = useCallback(
+    (customerData: any) => {
+      setUser({
+        id: customerData.id,
+        name: customerData.name,
+        email: customerData.email,
+        phone: customerData.phone,
+        userType: 'sales',
+      });
+      const token = getSalesRoleToken();
+      if (token) loadServiceAccounts(token);
+      else setScreen('app');
+    },
+    [loadServiceAccounts],
+  );
+
+  const handleSASelect = useCallback((sa: ServiceAccount) => {
+    saveSelectedSA('sales', sa);
+    setScreen('app');
+  }, []);
+
+  const handleSARetry = useCallback(() => {
+    const token = getSalesRoleToken();
+    if (token) loadServiceAccounts(token);
+  }, [loadServiceAccounts]);
+
+  const handleSignOut = useCallback(() => {
+    clearSalesRoleLogin();
+    clearSalesSession();
+    clearSelectedSA('sales');
+    setUser(null);
+    setSaAccounts([]);
+    setSaErrorKind(null);
+    setScreen('login');
+  }, []);
+
+  const handleSwitchSA = useCallback(() => {
+    clearSelectedSA('sales');
+    setSaAccounts([]);
+    setScreen('selectSA');
+    const token = getSalesRoleToken();
+    if (token) loadServiceAccounts(token);
+  }, [loadServiceAccounts]);
+
+  return (
+    <>
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            padding: '12px 16px',
+            borderRadius: '12px',
+            border: '1px solid var(--border)',
+            fontSize: '13px',
+            fontFamily: "'Outfit', sans-serif",
+          },
+          success: { iconTheme: { primary: 'var(--color-success)', secondary: 'white' } },
+          error: { iconTheme: { primary: 'var(--color-error)', secondary: 'white' } },
+        }}
+      />
+      {screen === 'login' && (
+        <Login onLoginSuccess={handleLoginSuccess} userType="sales" microsoftReturnPath="/charger" />
+      )}
+      {screen === 'selectSA' && (
+        <SelectServiceAccount
+          accounts={saAccounts}
+          loading={saLoading}
+          errorKind={saErrorKind}
+          userName={user?.name ?? ''}
+          userType="sales"
+          lastSAId={getSelectedSAId('sales')}
+          onSelect={handleSASelect}
+          onSignOut={handleSignOut}
+          onRetry={handleSARetry}
+        />
+      )}
+      {screen === 'app' && <ChargerApp onSwitchSA={handleSwitchSA} />}
+    </>
+  );
 }
