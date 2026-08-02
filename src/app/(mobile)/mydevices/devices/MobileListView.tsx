@@ -81,7 +81,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 1 }}>
-      <div className="p-4 max-w-md mx-auto">
+      <div className="p-4 content-col--wide mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div className="text-center flex-1">

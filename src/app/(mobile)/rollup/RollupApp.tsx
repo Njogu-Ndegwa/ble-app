@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import RollupDashboard from './components/RollupDashboard';
 import RollupFileDetail from './components/RollupFileDetail';
-import AppHeader from '@/components/AppHeader';
+import { AppShell } from '@/components/layout';
 import { getSelectedSA, setSAScopeOverride } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
 import type { RollupFileType } from '@/lib/rollup/types';
@@ -166,15 +166,10 @@ export default function RollupApp(_: RollupAppProps) {
   };
 
   return (
-    <div className="sales-container">
-      <div className="sales-bg-gradient" />
-      <AppHeader showBack onBack={handleBack} />
-
-      <main className="sales-main sales-main-screen">
-        <div className="sales-screen-container">
-          {renderContent()}
-        </div>
-      </main>
-    </div>
+    <AppShell header={{ showBack: true, onBack: handleBack }} width="wide">
+      <div className="sales-screen-container">
+        {renderContent()}
+      </div>
+    </AppShell>
   );
 }

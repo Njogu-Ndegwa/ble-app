@@ -1,5 +1,7 @@
 import { Outfit, DM_Mono } from "next/font/google";
 import "./globals.css";
+// Must stay after globals.css: all min-width overrides win by source order.
+import "../styles/responsive.css";
 import ClientProviders from "./ClientProviders";
 
 const outfit = Outfit({

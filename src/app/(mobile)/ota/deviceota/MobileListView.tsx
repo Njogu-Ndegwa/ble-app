@@ -66,7 +66,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   };
 
   return (
-    <div className="relative max-w-md mx-auto bg-gradient-page min-h-screen overflow-hidden">
+    <div className="relative content-col--wide mx-auto bg-gradient-page min-h-screen overflow-hidden">
       <div className="p-4">
         <div className="flex justify-between items-center mb-4">
           <div className="text-center flex-1">

@@ -237,7 +237,7 @@ export default function RollupDashboard({
                   count={folderTotal}
                   shown={visibleFolders.length}
                 />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <div className="dashboard-card-list" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                   {visibleFolders.map((folder) => (
                     <FolderCard key={folder.sa_id} folder={folder} onClick={handleFolderClick} />
                   ))}
@@ -279,7 +279,7 @@ export default function RollupDashboard({
             {hasRecords && (
               <div>
                 <SectionHeader label="Records" />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <div className="dashboard-card-list" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                   {visibleStacks.map((stack) => (
                     <StackCategoryCard
                       key={stack.type}

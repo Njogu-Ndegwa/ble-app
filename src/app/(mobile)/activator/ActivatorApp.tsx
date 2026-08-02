@@ -10,10 +10,10 @@ import {
   type EmployeeUser
 } from '@/lib/attendant-auth';
 import { clearSalesSession } from '@/lib/sales-session';
-import ActivatorNav, { type ActivatorScreen } from './components/ActivatorNav';
+import ActivatorNav, { useActivatorNavItems, type ActivatorScreen } from './components/ActivatorNav';
 import { getSelectedSA } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
-import AppHeader from '@/components/AppHeader';
+import { AppShell } from '@/components/layout';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 const _loadingSpinner = () => (
@@ -37,6 +37,7 @@ export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps
   const [currentScreen, setCurrentScreen] = useState<ActivatorScreen>('activate');
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
   const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
+  const navItems = useActivatorNavItems();
 
   // Suppress the pending-session prompt on re-entry via bottom nav after the
   // first check (same pattern as AttendantApp / SalesApp).
@@ -111,36 +112,34 @@ export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps
   }
 
   return (
-    <div className="sales-container">
-      <div className="sales-bg-gradient" />
-      <AppHeader showBack />
-
-      <main className="sales-main sales-main-screen">
-        {currentScreen === 'sessions' && (
-          <div className="sales-screen-container">
-            <ActivatorSessions onSelectSession={handleSelectSession} />
-          </div>
-        )}
-        {currentScreen === 'profile' && (
-          <div className="sales-screen-container">
-            <WorkflowProfile
-              employee={employee}
-              onLogout={handleLogout}
-              roleIconSrc="/assets/optimized/Activator.png"
-              roleLabel={t('role.activator') || 'Activator'}
-              employeeIdLabel={t('sales.profile.employeeId') || 'Employee ID'}
-              fallbackInitials="AC"
-              serviceAccount={currentSA}
-              onSwitchSA={onSwitchSA}
-            />
-          </div>
-        )}
-      </main>
-
-      <ActivatorNav
-        currentScreen={currentScreen}
-        onNavigate={handleNavigate}
-      />
-    </div>
+    <AppShell
+      header={{ showBack: true }}
+      width="default"
+      nav={{
+        items: navItems,
+        currentScreen,
+        onNavigate: (screen) => handleNavigate(screen as ActivatorScreen),
+      }}
+    >
+      {currentScreen === 'sessions' && (
+        <div className="sales-screen-container">
+          <ActivatorSessions onSelectSession={handleSelectSession} />
+        </div>
+      )}
+      {currentScreen === 'profile' && (
+        <div className="sales-screen-container">
+          <WorkflowProfile
+            employee={employee}
+            onLogout={handleLogout}
+            roleIconSrc="/assets/optimized/Activator.png"
+            roleLabel={t('role.activator') || 'Activator'}
+            employeeIdLabel={t('sales.profile.employeeId') || 'Employee ID'}
+            fallbackInitials="AC"
+            serviceAccount={currentSA}
+            onSwitchSA={onSwitchSA}
+          />
+        </div>
+      )}
+    </AppShell>
   );
 }

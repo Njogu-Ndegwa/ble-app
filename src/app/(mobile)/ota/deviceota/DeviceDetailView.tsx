@@ -14,7 +14,7 @@ interface DeviceDetailProps {
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, onBack }) => {
   const { t } = useI18n();
   return (
-    <div className="max-w-md mx-auto bg-gradient-page min-h-screen text-text-primary">
+    <div className="content-col--wide mx-auto bg-gradient-page min-h-screen text-text-primary">
       <div className="p-4 flex items-center">
         <button onClick={onBack} className="mr-4">
           <ArrowLeft className="w-6 h-6 text-text-secondary" />

@@ -78,6 +78,12 @@ export interface ListScreenProps {
   // --- Optional FAB ---
   fabAction?: () => void;
   fabLabel?: string;
+  /**
+   * Opt-in responsive grid: minimum card width in px. When set, items lay
+   * out as a multi-column grid at md+ (mobile stays the single column).
+   * Only enable after checking the item cards tolerate variable width.
+   */
+  gridMinWidth?: number;
 }
 
 /**
@@ -116,6 +122,7 @@ export default function ListScreen({
   children,
   fabAction,
   fabLabel,
+  gridMinWidth,
 }: ListScreenProps) {
   const { t } = useI18n();
   const [showPeriodPicker, setShowPeriodPicker] = useState(false);
@@ -274,7 +281,12 @@ export default function ListScreen({
 
           {/* List content */}
           {!isLoading && !error && !isEmpty && (
-            <div className="flex flex-col gap-2">{children}</div>
+            <div
+              className={`flex flex-col gap-2${gridMinWidth ? ' ls-items-grid' : ''}`}
+              style={gridMinWidth ? ({ '--ls-grid-min': `${gridMinWidth}px` } as React.CSSProperties) : undefined}
+            >
+              {children}
+            </div>
           )}
 
           {/* Spacer pushes pagination to bottom when few items */}
@@ -318,7 +330,7 @@ export default function ListScreen({
         <button
           onClick={fabAction}
           style={{ backgroundColor: 'var(--color-brand)' }}
-          className="fixed bottom-24 right-5 flex items-center gap-2 h-12 px-5 rounded-full text-black font-semibold text-sm active:scale-95 transition-transform z-30"
+          className="fab-anchor flex items-center gap-2 h-12 px-5 rounded-full text-black font-semibold text-sm active:scale-95 transition-transform z-30"
           aria-label={fabLabel || 'Add'}
         >
           <Plus size={20} strokeWidth={2.5} />

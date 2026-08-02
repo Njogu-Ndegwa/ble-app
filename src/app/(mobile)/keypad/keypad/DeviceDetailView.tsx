@@ -774,7 +774,7 @@ useEffect(() => {
         title={activeCharacteristic?.name || t('Write')}
       />
       {/* ---------- main content ---------- */}
-      <div className="p-4 space-y-4 max-w-md mx-auto">
+      <div className="p-4 space-y-4 content-col--wide mx-auto">
         {credentialsCards}
         {inputDisplay}
         {keypadGrid}

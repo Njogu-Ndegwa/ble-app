@@ -93,7 +93,7 @@ export default function DetailScreen({
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <button
           onClick={onBack}
-          className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors"
+          className="detail-back-btn p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors"
           aria-label="Back"
         >
           <ArrowLeft size={20} className="text-text-primary" />
@@ -197,7 +197,7 @@ export default function DetailScreen({
         <button
           onClick={fabAction}
           style={{ backgroundColor: 'var(--color-brand)' }}
-          className="fixed bottom-24 right-5 flex items-center gap-2 h-12 px-5 rounded-full text-black font-semibold text-sm active:scale-95 transition-transform z-30"
+          className="fab-anchor flex items-center gap-2 h-12 px-5 rounded-full text-black font-semibold text-sm active:scale-95 transition-transform z-30"
           aria-label={fabLabel || 'Action'}
         >
           {fabIcon}

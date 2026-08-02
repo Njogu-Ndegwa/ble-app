@@ -8,9 +8,40 @@ A comprehensive design system for consistent UI across the application.
 /styles
 ├── tokens.ts           # TypeScript design tokens
 ├── design-system.css   # CSS custom properties & utilities
+├── responsive.css      # ALL tablet/desktop (min-width) rules — one file
 ├── index.ts            # TypeScript exports
 └── README.md           # This file
 ```
+
+## Responsive contract
+
+The app is mobile-first and phones are the production form factor. Every
+tablet/desktop adaptation follows these rules — PRs that break them get
+rejected:
+
+1. **Additive only.** Responsive behavior arrives via `@media (min-width: …)`
+   rules (or `md:`/`lg:` Tailwind prefixes) — never by rewriting a base
+   (mobile) declaration. Mobile must stay pixel-identical.
+2. **One breakpoint vocabulary** — the Tailwind defaults:
+   `640` (sm) / `768` (md, tablet) / `1024` (lg, nav rail + master-detail) /
+   `1280` (xl, desktop). The same values are exported as `breakpoint` in
+   `tokens.ts` for JS-side switches (`useMediaQuery`).
+3. **No hardcoded max-widths** (CSS `max-width` or Tailwind `max-w-*`).
+   Content width comes only from the `--content-narrow` / `--content-default` /
+   `--content-wide` tokens — in JSX use `<ContentColumn>` or AppShell's
+   `width` prop (`src/components/layout/`).
+4. **No per-applet shell CSS.** The legacy `*-container` classes in
+   globals.css are frozen; applets use `<AppShell>` which owns positioning,
+   the nav rail, gradient, and bottom bars.
+5. **All min-width CSS lives in `responsive.css`**, imported after
+   globals.css so overrides win by source order and every responsive rule is
+   greppable in one place.
+6. **Sheets:** new bottom sheets reuse `.bottom-sheet` / `SelectSheet` — both
+   already center/cap on wide screens; don't fork them.
+
+Verification: `node tests/visual/capture.mjs` + `tests/visual/compare.mjs`
+diff the app at 390/768/1024/1440 against `tests/visual-baseline`
+(the 390 set must always diff clean).
 
 ## Quick Start
 

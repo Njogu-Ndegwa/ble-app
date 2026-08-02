@@ -1,7 +1,7 @@
 
 {
-  "name": "My Awesome PWA app",
-  "short_name": "PWA App",
+  "name": "OVES App",
+  "short_name": "OVES",
   "icons": [
     {
       "src": "/icons/android-chrome-192x192.png",
@@ -19,5 +19,5 @@
   "background_color": "#FFFFFF",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "any"
 }

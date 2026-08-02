@@ -4,7 +4,7 @@ import React, { useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearSalesRoleLogin } from '@/lib/attendant-auth';
 import { clearSalesSession } from '@/lib/sales-session';
-import AppHeader from '@/components/AppHeader';
+import { AppShell } from '@/components/layout';
 import Ticketing from './Ticketing';
 
 interface TicketingAppProps {
@@ -33,15 +33,10 @@ export default function TicketingApp({ onLogout }: TicketingAppProps) {
   }, [onLogout, router]);
 
   return (
-    <div className="sales-container">
-      <div className="sales-bg-gradient" />
-      <AppHeader showBack />
-
-      <main className="sales-main sales-main-screen">
-        <div className="sales-screen-container">
-          <Ticketing onLogout={handleLogout} />
-        </div>
-      </main>
-    </div>
+    <AppShell header={{ showBack: true }} width="wide">
+      <div className="sales-screen-container">
+        <Ticketing onLogout={handleLogout} />
+      </div>
+    </AppShell>
   );
 }

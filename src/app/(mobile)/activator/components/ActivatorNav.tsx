@@ -11,10 +11,11 @@ interface ActivatorNavProps {
   onNavigate: (screen: ActivatorScreen) => void;
 }
 
-const ActivatorNav: React.FC<ActivatorNavProps> = ({ currentScreen, onNavigate }) => {
+/** Nav items shared by the bottom bar (flow screens) and AppShell's rail. */
+export function useActivatorNavItems(): NavItem[] {
   const { t } = useI18n();
 
-  const navItems: NavItem[] = useMemo(() => [
+  return useMemo(() => [
     {
       key: 'activate',
       label: t('activator.nav.activate') || 'Activate',
@@ -31,6 +32,10 @@ const ActivatorNav: React.FC<ActivatorNavProps> = ({ currentScreen, onNavigate }
       icon: NavIcons.profile,
     },
   ], [t]);
+}
+
+const ActivatorNav: React.FC<ActivatorNavProps> = ({ currentScreen, onNavigate }) => {
+  const navItems = useActivatorNavItems();
 
   return (
     <BottomNav

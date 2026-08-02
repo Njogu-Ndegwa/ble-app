@@ -704,7 +704,7 @@ html.theme-transition *::after {
 /* ===================== */
 .oves-app {
   height: 100%;
-  max-width: 430px;
+  max-width: var(--content-default);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -787,7 +787,7 @@ html.theme-transition *::after {
   padding: 16px;
   position: relative;
   z-index: 5;
-  max-width: 430px;
+  max-width: var(--content-default);
   margin: 0 auto;
   width: 100%;
 }
@@ -1490,7 +1490,7 @@ html.theme-transition *::after {
   padding: 0 16px 100px;
   position: relative;
   z-index: 5;
-  max-width: 430px;
+  max-width: var(--content-default);
   margin: 0 auto;
   width: 100%;
 }
@@ -2668,7 +2668,7 @@ html.theme-transition *::after {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 430px;
+  max-width: var(--content-narrow);
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(to top, var(--bg-primary) 85%, transparent);
   z-index: 100;
@@ -6088,7 +6088,7 @@ html.theme-transition *::after {
   display: flex;
   flex-direction: column;
   pointer-events: none;
-  max-width: 430px;
+  max-width: var(--content-default);
   margin: 0 auto;
 }
 
@@ -6143,7 +6143,7 @@ html.theme-transition *::after {
   padding: 0 16px 100px;
   position: relative;
   z-index: 5;
-  max-width: 430px;
+  max-width: var(--content-default);
   margin: 0 auto;
   width: 100%;
 }
@@ -6788,7 +6788,7 @@ html.theme-transition *::after {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  max-width: 430px;
+  max-width: var(--content-default);
   margin: 0 auto;
 }
 
@@ -7822,7 +7822,7 @@ html.theme-transition *::after {
   padding: 0 16px 90px;
   position: relative;
   z-index: 5;
-  max-width: 430px;
+  max-width: var(--content-default);
   margin: 0 auto;
   width: 100%;
 }
@@ -11844,7 +11844,9 @@ html.theme-transition *::after {
   /* Uses base .bottom-nav styles - matches Rider design */
 }
 
-/* Bottom fixed area - contains action bar and navigation together */
+/* Bottom fixed area - contains action bar and navigation together.
+   Width-capped like its .sales-bottom-fixed twin (no-op on phones where the
+   viewport is narrower than the cap). */
 .attendant-bottom-fixed {
   position: fixed;
   bottom: 0;
@@ -11854,6 +11856,8 @@ html.theme-transition *::after {
   display: flex;
   flex-direction: column;
   pointer-events: none;
+  max-width: var(--content-default);
+  margin: 0 auto;
 }
 
 .attendant-bottom-fixed > * {

@@ -704,7 +704,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{device.macAddress || t('Unknown MAC')}</p>
       </div>
 
-      <div className="p-4 max-w-md mx-auto">
+      <div className="p-4 content-col--wide mx-auto">
         <StatusCard
           hasRcrd={!!rcrdCharacteristic}
           remainingDays={remainingDays != null ? String(remainingDays) : null}
