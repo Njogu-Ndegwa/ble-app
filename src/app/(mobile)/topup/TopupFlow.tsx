@@ -2,6 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useI18n } from '@/i18n';
+import { FlowTimeline, TOPUP_TIMELINE_STEPS } from '@/components/shared';
 import type { EmployeeUser } from '@/lib/attendant-auth';
 import StepIdentify, { type IdentifiedSub } from './components/StepIdentify';
 import StepPlan, { type SelectedPlan } from './components/StepPlan';
@@ -34,22 +35,19 @@ export default function TopupFlow({ employee }: TopupFlowProps) {
 
   return (
     <div style={{ paddingBottom: 24 }}>
-      {/* Stepper dots */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '12px 0' }}>
-        {STEP_ORDER.map((s, i) => (
-          <div
-            key={s}
-            aria-hidden="true"
-            style={{
-              width: i === stepIndex ? 20 : 8,
-              height: 8,
-              borderRadius: 4,
-              transition: 'all .2s',
-              background: i <= stepIndex ? 'var(--accent)' : 'var(--border)',
-            }}
-          />
-        ))}
-      </div>
+      {/* Same timeline component the swap / manual-swap / activator flows use,
+          so every stepped applet reads identically. */}
+      <FlowTimeline
+        currentStep={stepIndex + 1}
+        maxStepReached={stepIndex + 1}
+        totalSteps={STEP_ORDER.length}
+        steps={TOPUP_TIMELINE_STEPS}
+        onStepClick={(target) => {
+          const targetStep = STEP_ORDER[target - 1];
+          // The credit is irreversible, so 'done' never navigates backwards.
+          if (targetStep && targetStep !== 'done' && step !== 'done') setStep(targetStep);
+        }}
+      />
 
       {step === 'identify' && (
         <StepIdentify

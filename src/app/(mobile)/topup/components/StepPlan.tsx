@@ -35,9 +35,11 @@ interface StepPlanProps {
   sub: IdentifiedSub;
   onBack: () => void;
   onSelected: (plan: SelectedPlan) => void;
+  /** Optional heading override for applets reusing this step (Charger Control). */
+  title?: string;
 }
 
-export default function StepPlan({ sub, onBack, onSelected }: StepPlanProps) {
+export default function StepPlan({ sub, onBack, onSelected, title }: StepPlanProps) {
   const { t } = useI18n();
   const [plans, setPlans] = useState<PlanOption[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
@@ -132,7 +134,7 @@ export default function StepPlan({ sub, onBack, onSelected }: StepPlanProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-          {t('topup.planTitle') || 'Choose a plan'}
+          {title || t('topup.planTitle') || 'Choose a plan'}
         </h2>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
           {sub.packageName

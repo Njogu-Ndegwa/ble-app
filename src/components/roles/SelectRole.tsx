@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Zap } from 'lucide-react';
+import { Zap, BatteryCharging } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import AppHeader from '@/components/AppHeader';
 import { getActiveSAApplets, getSelectedSA, getSelectedSAId } from '@/lib/ov-auth';
@@ -14,8 +14,10 @@ interface Props {
 }
 
 /** Catalog sections, rendered in this order. Labels: role.category.<id>. */
-type RoleCategory = 'field' | 'rider' | 'devices' | 'mgmt' | 'support';
-const CATEGORY_ORDER: RoleCategory[] = ['field', 'rider', 'devices', 'mgmt', 'support'];
+type RoleCategory = 'field' | 'rider' | 'devices' | 'mgmt' | 'support' | 'trial';
+// 'trial' is deliberately last: it holds unreleased applets that only a single
+// pilot SA can see, and they should sit below everything an SA actually uses.
+const CATEGORY_ORDER: RoleCategory[] = ['field', 'rider', 'devices', 'mgmt', 'support', 'trial'];
 
 interface RoleConfig {
   id: string;
@@ -33,6 +35,12 @@ interface RoleConfig {
    * always shown.
    */
   appletSlug?: string | string[];
+  /**
+   * When true, the role is only visible while the selected SA is one of
+   * TRIAL_SA_IDS — used to pilot an unreleased applet without granting a
+   * backend applet slug.
+   */
+  trialSaOnly?: boolean;
   disabled?: boolean;
   badgeKey?: string;
   icon:
@@ -74,6 +82,22 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   // Backend grants the Top-Up app via the `energytopup` slug.
   topup: 'energytopup',
 };
+
+/**
+ * Service Accounts allowed to see roles flagged `trialSaOnly`, by id.
+ *
+ *   3 → "OV Kenya(Test)"
+ *
+ * Matching on id rather than on a /test/i name pattern is deliberate: the name
+ * match also caught "Test Company" (11) and "Test-Sales_SA" (40), and would
+ * catch any customer SA that happens to have "test" in its name — which is a
+ * wide blast radius for an applet that writes to hardware and takes payment.
+ *
+ * TEMPORARY. This exists only so the Charger Control pilot can run without a
+ * backend applet-slug change; replace it with a real slug once the applet is
+ * released.
+ */
+const TRIAL_SA_IDS: readonly number[] = [3];
 
 const ALL_ROLES: RoleConfig[] = [
   {
@@ -234,6 +258,17 @@ const ALL_ROLES: RoleConfig[] = [
     category: 'field',
     defaultPinned: true,
   },
+  // Last entry in the last section, so the pilot tile sits at the very bottom
+  // of the grid for the one SA that can see it. Never defaultPinned — it must
+  // not surface itself into "My Apps".
+  {
+    id: 'charger',
+    labelKey: 'role.charger',
+    icon: { type: 'lucide', el: <BatteryCharging size={28} color="#fff" />, gradient: 'role-grad-keypad' },
+    path: '/charger',
+    trialSaOnly: true,
+    category: 'trial',
+  },
 ];
 
 // "My Apps" pins — ordered role ids, persisted per service account (same
@@ -313,12 +348,17 @@ export default function SelectRole({ onSwitchSA }: Props) {
   // caller renders an empty state instead of falling back to all roles.
   const visibleRoles = useMemo(() => {
     const saApplets = getActiveSAApplets();
+    const saId = getSelectedSAId();
+    const isTrialSA = saId !== null && TRIAL_SA_IDS.includes(saId);
 
-    if (saApplets.length === 0) {
+    if (saApplets.length === 0 && !isTrialSA) {
       return [] as RoleConfig[];
     }
 
     const filtered = ALL_ROLES.filter(role => {
+      // Trial roles bypass the applet-slug check entirely: they are shown for
+      // the pilot SA and hidden everywhere else.
+      if (role.trialSaOnly) return isTrialSA;
       const slug = role.appletSlug ?? APPLET_SLUG_MAP[role.id];
       if (!slug) return true;
       const slugs = Array.isArray(slug) ? slug : [slug];
