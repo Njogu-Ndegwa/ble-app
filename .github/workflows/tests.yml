@@ -1,0 +1,35 @@
+# Fast feedback on every branch and PR.
+#
+# Deliberately separate from dev.ci-cd.yaml / prod.ci-cd.yaml: those trigger only
+# on pushes to dev and main, so a feature branch got no signal at all and the
+# test gate could not be seen working until it had already been merged. Adding
+# `pull_request` to those workflows instead would drag build-and-publish along
+# with it, pushing a Docker image to the registry for every PR.
+#
+# Branch pushes to dev/main are ignored here because those workflows already run
+# the same suite as their deploy gate.
+name: Tests
+
+on:
+  push:
+    branches-ignore: [dev, main]
+  pull_request:
+
+jobs:
+  pytest-equivalent:
+    name: vitest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        # npm install, not npm ci: this repo has no lockfile (the Dockerfile
+        # also does a bare `npm i`).
+        run: npm install
+      - name: Run tests
+        run: npm test
