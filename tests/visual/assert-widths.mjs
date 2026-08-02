@@ -59,6 +59,7 @@ const ROUTES = [
   { path: '/support/app', slug: 'support' },
   { path: '/rollup', slug: 'rollup' },
   { path: '/topup', slug: 'topup' },
+  { path: '/charger', slug: 'charger' },
   { path: '/assembly', slug: 'assembly' },
   { path: '/activator', slug: 'activator' },
   { path: '/keypad/keypad', slug: 'keypad' },
@@ -76,6 +77,7 @@ const ALL_APPLETS = [
   'assets', 'mydevices', 'ota', 'keypad', 'rider', 'rider-basic', 'attendant',
   'customers', 'customer-management', 'orders', 'products', 'activator',
   'ticketing', 'ticketing-customer', 'location', 'rollup', 'energytopup',
+  'charger',
 ]
 const STUB_SA = { id: 1, name: 'Baseline SA', my_role: 'admin', applets: ALL_APPLETS }
 const STUB_EMPLOYEE = { id: 1, name: 'Baseline Tester', email: 'baseline@test.local' }
