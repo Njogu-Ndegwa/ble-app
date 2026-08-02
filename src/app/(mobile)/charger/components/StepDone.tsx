@@ -88,6 +88,20 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
         </div>
       </div>
 
+      {receipt.demo && (
+        <div
+          role="status"
+          style={{
+            display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', fontSize: 12,
+            background: 'var(--warning-soft, rgba(234,179,8,.12))', color: 'var(--text-primary)',
+            border: '1px dashed var(--warning, #eab308)', borderRadius: 'var(--radius-md)',
+          }}
+        >
+          <AlertTriangle size={14} style={{ flexShrink: 0, color: 'var(--warning, #eab308)' }} />
+          <span>{t('charger.demoReceiptNote')}</span>
+        </div>
+      )}
+
       {receipt.wasRetry && (
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
           {t('charger.idempotentNote')}

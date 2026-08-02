@@ -33,6 +33,7 @@ import {
 import { InputModeToggle, WeChatPayment } from '@/components/shared';
 import type { InputMode } from '@/components/shared/types';
 import { buildServiceTopupInput, assessTopupResponse } from '../../topup/lib/topup-core';
+import { demoPayment, demoWait } from '../lib/demo';
 import type { IdentifiedSub } from '../../topup/components/StepIdentify';
 import type { SelectedPlan } from '../../topup/components/StepPlan';
 import type { PaidCharge } from '../lib/types';
@@ -57,9 +58,11 @@ interface StepPayProps {
   plan: SelectedPlan;
   onBack: () => void;
   onPaid: (paid: PaidCharge) => void;
+  /** Demo mode: no order, no receipt verification, no ABS credit. */
+  demo?: boolean;
 }
 
-export default function StepPay({ sub, plan, onBack, onPaid }: StepPayProps) {
+export default function StepPay({ sub, plan, onBack, onPaid, demo = false }: StepPayProps) {
   const { t } = useI18n();
   const token = useMemo(() => getSalesRoleToken(), []);
 
@@ -78,6 +81,15 @@ export default function StepPay({ sub, plan, onBack, onPaid }: StepPayProps) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Demo mode never creates a real order.
+      if (demo) {
+        await demoWait(400);
+        if (!cancelled) {
+          setOrderId(0);
+          setCreatingOrder(false);
+        }
+        return;
+      }
       setCreatingOrder(true);
       setOrderError(null);
       try {
@@ -115,7 +127,7 @@ export default function StepPay({ sub, plan, onBack, onPaid }: StepPayProps) {
       }
     })();
     return () => { cancelled = true; };
-  }, [sub.subscriptionCode, plan.productId, amount, token, t]);
+  }, [demo, sub.subscriptionCode, plan.productId, amount, token, t]);
 
   const handleCopy = useCallback((key: string, value: string) => {
     navigator.clipboard?.writeText(value).then(
@@ -134,6 +146,16 @@ export default function StepPay({ sub, plan, onBack, onPaid }: StepPayProps) {
    */
   const verifyAndCredit = useCallback(
     async (receipt: string, method: string, preVerified = false) => {
+      // Demo mode short-circuits before any network call: no receipt is
+      // verified and no quota is credited, so nothing here can move money.
+      if (demo) {
+        setProcessing(true);
+        setError(null);
+        await demoWait();
+        setProcessing(false);
+        onPaid({ ...demoPayment(plan), demo: true });
+        return;
+      }
       if (!orderId) return;
       setProcessing(true);
       setError(null);
@@ -211,17 +233,18 @@ export default function StepPay({ sub, plan, onBack, onPaid }: StepPayProps) {
         setProcessing(false);
       }
     },
-    [orderId, amount, token, sub, plan, onPaid, t],
+    [demo, orderId, amount, token, sub, plan, onPaid, t],
   );
 
   const handleConfirm = useCallback(() => {
     const receipt = transactionId.trim();
-    if (!receipt) {
+    // Demo mode has no receipt to enter, so it skips the requirement.
+    if (!receipt && !demo) {
       setError(t('charger.enterReference'));
       return;
     }
     verifyAndCredit(receipt, 'mobile_money');
-  }, [transactionId, verifyAndCredit, t]);
+  }, [transactionId, verifyAndCredit, demo, t]);
 
   // Z-Pay payments are already verified against the Odoo order by the time
   // onPaid fires, so they skip confirmPaymentManual (that endpoint is for
@@ -384,7 +407,7 @@ export default function StepPay({ sub, plan, onBack, onPaid }: StepPayProps) {
             type="button"
             className="btn btn-primary"
             onClick={handleConfirm}
-            disabled={processing || !transactionId.trim()}
+            disabled={processing || (!demo && !transactionId.trim())}
             aria-busy={processing}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
           >

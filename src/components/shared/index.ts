@@ -66,6 +66,8 @@ export {
   default as FlowTimeline,
   ATTENDANT_TIMELINE_STEPS,
   SALES_TIMELINE_STEPS,
+  TOPUP_TIMELINE_STEPS,
+  CHARGER_TIMELINE_STEPS,
   StepIcons,
 } from './FlowTimeline';
 export type { TimelineStep } from './FlowTimeline';

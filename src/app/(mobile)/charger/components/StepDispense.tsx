@@ -14,6 +14,7 @@ import { AlertCircle, BatteryCharging, Clock, Loader2, Zap } from 'lucide-react'
 
 import { useI18n } from '@/i18n';
 import { writeBleCharacteristic } from '@/app/utils';
+import { DEMO_DELAY_MS } from '../lib/demo';
 import type { IdentifiedSub } from '../../topup/components/StepIdentify';
 import type { SelectedPlan } from '../../topup/components/StepPlan';
 import {
@@ -45,6 +46,8 @@ export interface ChargeReceipt {
   /** False when the rider paid but the charger never acknowledged the write. */
   dispensed: boolean;
   wasRetry?: boolean;
+  /** True for demo runs — no money moved and no charger was written to. */
+  demo?: boolean;
 }
 
 interface StepDispenseProps {
@@ -54,10 +57,12 @@ interface StepDispenseProps {
   paid: PaidCharge;
   onReconnect: () => void;
   onDone: (receipt: ChargeReceipt) => void;
+  /** Demo mode: simulate the write instead of touching the BLE bridge. */
+  demo?: boolean;
 }
 
 export default function StepDispense({
-  sub, plan, charger, paid, onReconnect, onDone,
+  sub, plan, charger, paid, onReconnect, onDone, demo = false,
 }: StepDispenseProps) {
   const { t } = useI18n();
 
@@ -67,6 +72,8 @@ export default function StepDispense({
   const [failed, setFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [charOverride, setCharOverride] = useState<Partial<Record<ChargeMode, string>>>({});
+  /** Demo only: make the next simulated write fail, to walk the recovery path. */
+  const [demoFailNext, setDemoFailNext] = useState(false);
 
   // Memoised so the `?? []` fallback doesn't produce a new array identity on
   // every render and invalidate the memos below.
@@ -116,13 +123,28 @@ export default function StepDispense({
     }
 
     setSending(true);
-    writeBleCharacteristic(
-      charger.controlService.uuid,
-      characteristic.uuid,
-      value,
-      charger.macAddress,
+
+    // Demo mode simulates the acknowledgement rather than writing to hardware.
+    // `demoFailNext` lets the paid-but-not-dispensed screen be walked too.
+    const send = demo
+      ? (cb: (r: unknown) => void) => setTimeout(
+          () => cb(demoFailNext
+            ? JSON.stringify({ respCode: '11', respDesc: 'Demo: simulated charger failure' })
+            : JSON.stringify({ respCode: '200', respData: true })),
+          DEMO_DELAY_MS,
+        )
+      : (cb: (r: unknown) => void) => writeBleCharacteristic(
+          charger.controlService.uuid,
+          characteristic.uuid,
+          value,
+          charger.macAddress,
+          cb,
+        );
+
+    send(
       (responseData: unknown) => {
         setSending(false);
+        if (demo) setDemoFailNext(false);
         const assessment = assessWriteResponse(responseData);
         appendRecentCharge({
           subscriptionCode: sub.subscriptionCode,
@@ -133,6 +155,7 @@ export default function StepDispense({
           chargerMac: charger.macAddress,
           reference: paid.receipt,
           dispensed: assessment.ok,
+          demo,
           timestamp: new Date().toISOString(),
         });
         if (!assessment.ok) {
@@ -158,10 +181,11 @@ export default function StepDispense({
           characteristicName: characteristic.name,
           dispensed: true,
           wasRetry: paid.wasRetry,
+          demo,
         });
       },
     );
-  }, [sending, mode, minutes, plan, activeCharacteristic, charger, sub, paid, onDone, t]);
+  }, [sending, mode, minutes, plan, activeCharacteristic, charger, sub, paid, onDone, demo, demoFailNext, t]);
 
   const row = (label: string, value: React.ReactNode) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
@@ -408,6 +432,20 @@ export default function StepDispense({
         >
           {t('charger.reconnectCharger')}
         </button>
+        {demo && (
+          <button
+            type="button"
+            onClick={() => setDemoFailNext((v) => !v)}
+            disabled={sending}
+            style={{
+              width: '100%', padding: '8px 0', background: 'transparent',
+              border: '1px dashed var(--warning, #eab308)', borderRadius: 8,
+              color: 'var(--warning, #eab308)', fontSize: 12, cursor: 'pointer',
+            }}
+          >
+            {demoFailNext ? t('charger.demoFailArmed') : t('charger.demoFailNext')}
+          </button>
+        )}
       </div>
     </div>
   );

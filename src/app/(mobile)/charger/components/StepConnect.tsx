@@ -19,6 +19,7 @@ import {
 } from '@/app/utils';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
+import { DEMO_DELAY_MS, DEMO_DEVICES, demoCharger } from '../lib/demo';
 import type { ConnectedCharger, GattService } from '../lib/types';
 
 const EMA_ALPHA = 0.3;
@@ -45,9 +46,11 @@ interface ChargerDevice {
 interface StepConnectProps {
   onBack: () => void;
   onConnected: (charger: ConnectedCharger) => void;
+  /** Demo mode: fake the advertisements and the connect, never touch the bridge. */
+  demo?: boolean;
 }
 
-export default function StepConnect({ onBack, onConnected }: StepConnectProps) {
+export default function StepConnect({ onBack, onConnected, demo = false }: StepConnectProps) {
   const { t } = useI18n();
   const { bridge } = useBridge();
 
@@ -203,19 +206,63 @@ export default function StepConnect({ onBack, onConnected }: StepConnectProps) {
   );
 
   useEffect(() => {
-    if (!bridge) return;
+    if (demo || !bridge) return;
     return setupBridge(bridge);
-  }, [bridge, setupBridge]);
+  }, [demo, bridge, setupBridge]);
+
+  // ---- Demo mode: canned advertisements, no bridge involved ----------------
+  useEffect(() => {
+    if (!demo) return;
+    setIsScanning(true);
+    const id = setTimeout(() => {
+      devicesRef.current = DEMO_DEVICES.map((d) => ({
+        macAddress: d.macAddress,
+        name: d.name,
+        rawRssi: d.rssi,
+        smoothedRssi: d.rssi,
+      }));
+      setDevices(devicesRef.current);
+    }, 700);
+    return () => clearTimeout(id);
+  }, [demo]);
+
+  const connectDemo = useCallback(
+    (mac: string) => {
+      if (connectingMac) return;
+      setConnectingMac(mac);
+      setIsScanning(false);
+      setLoadingService(true);
+      setServiceProgress(0);
+      let progress = 0;
+      const timer = setInterval(() => {
+        progress += 25;
+        setServiceProgress(progress);
+        if (progress >= 100) {
+          clearInterval(timer);
+          setLoadingService(false);
+          setConnectingMac(null);
+          onConnectedRef.current(demoCharger(mac));
+        }
+      }, DEMO_DELAY_MS / 4);
+    },
+    [connectingMac],
+  );
 
   const startBleScan = useCallback(() => {
-    if (!window.WebViewJavascriptBridge) return;
+    // Demo mode must never start a real scan, even inside the app shell where
+    // the bridge genuinely exists.
+    if (demo || !window.WebViewJavascriptBridge) return;
     devicesRef.current = [];
     setDevices([]);
     window.WebViewJavascriptBridge.callHandler('startBleScan', '', () => {});
     setIsScanning(true);
-  }, []);
+  }, [demo]);
 
   const stopBleScan = useCallback(() => {
+    if (demo) {
+      setIsScanning(false);
+      return;
+    }
     if (batchTimerRef.current) {
       clearTimeout(batchTimerRef.current);
       batchTimerRef.current = null;
@@ -225,20 +272,24 @@ export default function StepConnect({ onBack, onConnected }: StepConnectProps) {
       window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
     }
     setIsScanning(false);
-  }, [flushDeviceBatch]);
+  }, [demo, flushDeviceBatch]);
 
   // Auto-start scanning once the bridge is ready (same pattern as Keypad —
   // handlers are registered in the effect above, which runs first).
   useEffect(() => {
-    if (!bridge) return;
+    if (demo || !bridge) return;
     const id = setTimeout(() => startBleScan(), 300);
     return () => {
       clearTimeout(id);
       stopBleScan();
     };
-  }, [bridge, startBleScan, stopBleScan]);
+  }, [demo, bridge, startBleScan, stopBleScan]);
 
   const connectToCharger = (mac: string) => {
+    if (demo) {
+      connectDemo(mac);
+      return;
+    }
     if (connectingMac) return;
     stopBleScan();
     setConnectingMac(mac);
@@ -252,8 +303,9 @@ export default function StepConnect({ onBack, onConnected }: StepConnectProps) {
   };
 
   // Nothing here works without the Android shell's bridge. Say so explicitly
-  // instead of leaving a dead Scan button and an empty list.
-  if (!bridge) {
+  // instead of leaving a dead Scan button and an empty list. Demo mode never
+  // touches the bridge, so it skips this gate.
+  if (!demo && !bridge) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div
@@ -389,7 +441,7 @@ export default function StepConnect({ onBack, onConnected }: StepConnectProps) {
         type="button"
         onClick={() => {
           const mac = connectedMacRef.current;
-          if (mac) disconnBleByMacAddress(mac, () => {});
+          if (!demo && mac) disconnBleByMacAddress(mac, () => {});
           onBack();
         }}
         style={{

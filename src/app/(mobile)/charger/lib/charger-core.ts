@@ -98,6 +98,8 @@ export interface RecentCharge {
   reference: string;
   /** False when the rider paid but the BLE write did not land. */
   dispensed: boolean;
+  /** True for demo runs — no money moved and no charger was written to. */
+  demo?: boolean;
   timestamp: string; // ISO
 }
 

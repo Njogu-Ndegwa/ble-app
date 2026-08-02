@@ -36,4 +36,6 @@ export interface PaidCharge {
   quotaAfter: number;
   /** True when ABS reported this credit had already been applied. */
   wasRetry: boolean;
+  /** True when this came from demo mode — no money moved, nothing was credited. */
+  demo?: boolean;
 }

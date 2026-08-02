@@ -361,6 +361,13 @@ export const StepIcons: Record<string, React.ReactNode> = {
       <line x1="3" y1="10" x2="21" y2="10"/>
     </svg>
   ),
+  charger: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="14" height="10" rx="2"/>
+      <path d="M20 11v2"/>
+      <path d="M9 9l-2 3h3l-2 3"/>
+    </svg>
+  ),
   done: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 6L9 17l-5-5"/>
@@ -512,6 +519,28 @@ export const ATTENDANT_TIMELINE_STEPS: TimelineStep[] = [
   { step: 4, labelKey: 'attendant.step.review', fallbackLabel: 'Review', icon: 'review' },
   { step: 5, labelKey: 'attendant.step.pay', fallbackLabel: 'Pay', icon: 'payment' },
   { step: 6, labelKey: 'attendant.step.done', fallbackLabel: 'Done', icon: 'done' },
+];
+
+/**
+ * Staff Top-Up workflow steps (4 steps)
+ */
+export const TOPUP_TIMELINE_STEPS: TimelineStep[] = [
+  { step: 1, labelKey: 'topup.step.identify', fallbackLabel: 'Customer', icon: 'customer' },
+  { step: 2, labelKey: 'topup.step.plan', fallbackLabel: 'Plan', icon: 'plan' },
+  { step: 3, labelKey: 'topup.step.confirm', fallbackLabel: 'Review', icon: 'review' },
+  { step: 4, labelKey: 'topup.step.done', fallbackLabel: 'Done', icon: 'done' },
+];
+
+/**
+ * Charger Control workflow steps (6 steps)
+ */
+export const CHARGER_TIMELINE_STEPS: TimelineStep[] = [
+  { step: 1, labelKey: 'charger.step.identify', fallbackLabel: 'Customer', icon: 'customer' },
+  { step: 2, labelKey: 'charger.step.plan', fallbackLabel: 'Plan', icon: 'plan' },
+  { step: 3, labelKey: 'charger.step.connect', fallbackLabel: 'Charger', icon: 'charger' },
+  { step: 4, labelKey: 'charger.step.pay', fallbackLabel: 'Pay', icon: 'payment' },
+  { step: 5, labelKey: 'charger.step.dispense', fallbackLabel: 'Charge', icon: 'battery-new' },
+  { step: 6, labelKey: 'charger.step.done', fallbackLabel: 'Done', icon: 'done' },
 ];
 
 /**
