@@ -68,8 +68,11 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
         search: debouncedSearch.trim() || undefined,
       });
       console.info('[ProductsList] catalog_roots:', JSON.stringify(data.catalog_roots));
-      setProducts(data.products);
-      setPagination(data.pagination);
+      // A response missing `products` must not put undefined into state — the
+      // render reads products.length unguarded, so it white-screens the whole
+      // applet behind the ErrorBoundary rather than showing an empty list.
+      setProducts(data.products ?? []);
+      setPagination(data.pagination ?? null);
       if (data.catalog_roots?.length) {
         setCatalogRoots(data.catalog_roots);
       }

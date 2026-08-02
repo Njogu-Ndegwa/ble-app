@@ -115,7 +115,7 @@ export async function searchTickets(
   const result = await apiFetchTickets(params, authToken);
   return {
     success: true,
-    tickets: result.tickets.map(mapTicket),
+    tickets: (result.tickets ?? []).map(mapTicket),
     total: result.total,
     page: result.page,
     limit: result.limit,
@@ -140,7 +140,7 @@ export async function getAllTickets(
   const result = await apiFetchTickets(params, authToken);
   return {
     success: true,
-    tickets: result.tickets.map(mapTicket),
+    tickets: (result.tickets ?? []).map(mapTicket),
     total: result.total,
     page: result.page,
     limit: result.limit,
@@ -176,7 +176,7 @@ export async function listTickets(
   const result = await apiFetchTickets(params, authToken);
   return {
     success: true,
-    tickets: result.tickets.map(mapTicket),
+    tickets: (result.tickets ?? []).map(mapTicket),
     total: result.total,
     page: result.page,
     limit: result.limit,
@@ -286,6 +286,10 @@ export async function moveTicketStage(
  */
 export async function getHelpdeskStages(authToken: string): Promise<HelpdeskStage[]> {
   const stages = await apiFetchStages(authToken);
+  // A response without a stages array must degrade to "no stages" — spreading
+  // undefined throws "stages is not iterable", which the caller reports as a
+  // load failure even though the request itself succeeded.
+  if (!Array.isArray(stages)) return [];
   return [...stages].sort((a, b) => a.sequence - b.sequence);
 }
 
