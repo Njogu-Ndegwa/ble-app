@@ -118,6 +118,7 @@ export default function FleetsList({ onSelect, onCreate, reloadKey }: FleetsList
   return (
     <ListScreen
       title={t('fleets.list.title') || 'Fleets'}
+      gridMinWidth={300}
       searchPlaceholder={t('fleets.list.searchPlaceholder') || 'Search fleets...'}
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}

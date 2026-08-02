@@ -7,11 +7,19 @@
  * THE CONTRACT (see src/styles/README.md):
  *  1. Mobile is production — base styles are never rewritten here. Only
  *     additive @media (min-width: …) rules.
- *  2. Breakpoints are the Tailwind defaults: 640 / 768(md, tablet) /
- *     1024(lg, rail + splits) / 1280(xl, desktop).
+ *  2. Breakpoints are chosen for real tablet hardware, NOT Tailwind's defaults:
+ *     720 (tablet portrait) / 1080 (nav rail + splits) / 1280 (desktop).
+ *     Tailwind's 768 sits above iPad Mini portrait (744) and its 1024 sits
+ *     exactly on iPad Pro 13" portrait, so both put a tablet in the wrong
+ *     layout. 1080 is deliberately in the gap between the widest tablet
+ *     portrait (1024) and the narrowest tablet landscape (1133), which makes
+ *     the rule "portrait is a big phone, landscape is a small desktop".
+ *     The same values are exported as `layout` in tokens.ts for JS switches.
  *  3. No hardcoded max-widths — widths come from the --content-* tokens
  *     defined in design-system.css.
- *  4. Shell layout belongs to .app-shell (components/layout/AppShell) only.
+ *  4. Anything that must line up with the content column reads --shell-width,
+ *     never a --content-* token directly. See design-system.css.
+ *  5. Shell layout belongs to .app-shell (components/layout/AppShell) only.
  */
 
 /* =====================================================
@@ -20,15 +28,15 @@
    widen every token-driven column on tablet/desktop.
    ===================================================== */
 
-@media (min-width: 768px) {
+@media (min-width: 720px) {
   :root {
     --content-narrow: 560px;
     --content-default: 680px;
-    --content-wide: 720px;
+    --content-wide: 880px;
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1080px) {
   :root {
     --content-narrow: 600px;
     --content-default: 760px;
@@ -44,7 +52,7 @@
 }
 
 /* =====================================================
-   SHELL — AppShell / ContentColumn
+   SHELL — AppShell
    Base styles for the NEW shell components live here (they replace the five
    legacy *-container classes; base values reproduce .sales-container et al
    byte-for-byte so mobile is pixel-identical).
@@ -55,10 +63,17 @@
   inset: 0;
   background: var(--bg-primary);
   display: flex;
-  flex-direction: row; /* rail | body; rail is display:none below lg */
+  flex-direction: row; /* rail | body; rail is display:none below the split */
   overflow: hidden;
   z-index: 100;
 }
+
+/* The shell declares its width ONCE here; main, the bottom bar, the nav and
+   the FAB all inherit it. Adding a width variant means adding one line. */
+.app-shell--narrow  { --shell-width: var(--content-narrow); }
+.app-shell--default { --shell-width: var(--content-default); }
+.app-shell--wide    { --shell-width: var(--content-wide); }
+.app-shell--full    { --shell-width: none; }
 
 .app-shell-body {
   flex: 1;
@@ -81,7 +96,7 @@
   z-index: 0;
 }
 
-/* Mirrors .sales-main (the 430px cap is now the --content-* tokens) */
+/* Mirrors .sales-main (the 430px cap is now --shell-width) */
 .app-shell-main {
   flex: 1;
   overflow-y: auto;
@@ -91,15 +106,11 @@
   z-index: 5;
   margin: 0 auto;
   width: 100%;
+  max-width: var(--shell-width);
 }
 
-.app-shell-main--narrow  { max-width: var(--content-narrow); }
-.app-shell-main--default { max-width: var(--content-default); }
-.app-shell-main--wide    { max-width: var(--content-wide); }
-.app-shell-main--full    { max-width: none; }
-
 /* Mirrors .sales-bottom-fixed (absolute within the body = fixed on mobile,
-   but stays inside the content area when the rail appears at lg) */
+   but stays inside the content area when the rail appears) */
 .app-shell-bottom {
   position: absolute;
   bottom: 0;
@@ -109,7 +120,7 @@
   display: flex;
   flex-direction: column;
   pointer-events: none;
-  max-width: var(--content-default);
+  max-width: var(--shell-width);
   margin: 0 auto;
 }
 
@@ -136,7 +147,11 @@
   z-index: auto;
 }
 
-/* ContentColumn — the only sanctioned width cap */
+/* ContentColumn — an inner width cap for content *within* a shell (used by the
+   BLE tool screens for their service/characteristic tables). It reads the
+   --content-* tokens rather than --shell-width because it is legitimately
+   allowed to be narrower than its shell; a value wider than the shell simply
+   never binds, since the shell's main has already capped the parent. */
 .content-col {
   width: 100%;
   margin-inline: auto;
@@ -147,6 +162,49 @@
 .content-col--wide    { max-width: var(--content-wide); }
 .content-col--full    { max-width: none; }
 
+/* The header is chrome too, so it tracks the shell rather than picking its own
+   token. globals.css caps .flow-header-inner at --content-default, which left
+   the logo visibly off-centre above a wide column. Deliberately outside a
+   media query: at base --shell-width resolves to --content-default (430px),
+   exactly the value it is overriding, so phones are unchanged. */
+.flow-header-inner {
+  max-width: var(--shell-width);
+}
+
+/* =====================================================
+   LEGACY SHELLS — width agreement
+   The five *-container shells in globals.css are frozen, but their content
+   and their chrome still have to agree on a width. Rather than teach each one
+   a max-width, point --shell-width at the variant the container is using;
+   the bottom nav inside then inherits the same number automatically.
+   ===================================================== */
+
+/* Keypad / BLE-devices tool screens opt into the wide column via a main
+   modifier; My Devices has no inner main and instead caps its content with
+   .content-col--wide directly, which is why that is matched too — otherwise
+   its nav bar would cap at --content-default under wide content. */
+.attendant-container:has(.attendant-main--wide),
+.attendant-container:has(.content-col--wide) {
+  --shell-width: var(--content-wide);
+}
+
+/* Flow containers keep a narrow reading column. */
+.sales-flow-container,
+.attendant-container:has(.attendant-main:not(.attendant-main-screen)) {
+  --shell-width: var(--content-narrow);
+}
+
+@media (min-width: 720px) {
+  .sales-flow-container .sales-main,
+  .attendant-container .attendant-main:not(.attendant-main-screen) {
+    max-width: var(--shell-width);
+  }
+
+  .attendant-main--wide {
+    max-width: var(--shell-width);
+  }
+}
+
 /* =====================================================
    NAV — NavRail / BottomNav visibility
    ===================================================== */
@@ -154,10 +212,10 @@
 /* Un-migrated applets (and the deliberately phone-shaped ones: rider,
    keypad, BLE tools) keep their bottom tab bar on wide screens — center it
    over the content column instead of smearing tabs across the viewport. */
-@media (min-width: 768px) {
+@media (min-width: 720px) {
   .bottom-nav {
     width: 100%;
-    max-width: var(--content-default);
+    max-width: var(--shell-width);
     margin: 0 auto;
   }
 }
@@ -166,7 +224,7 @@
   display: none;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1080px) {
   .nav-rail {
     display: flex;
     flex-direction: column;
@@ -190,6 +248,12 @@
   .app-nav-bottom {
     display: none;
   }
+
+  /* With a rail present the body no longer starts at x=0, so viewport-fixed
+     chrome has to know how much was taken from the left. */
+  .app-shell:has(.nav-rail) {
+    --shell-rail: var(--nav-rail-width);
+  }
 }
 
 /* =====================================================
@@ -197,8 +261,9 @@
    ===================================================== */
 
 /* ListScreen opt-in grid (gridMinWidth prop): single column on phones,
-   auto-fill grid at md+. --ls-grid-min is set inline by the component. */
-@media (min-width: 768px) {
+   auto-fill grid on tablet+. --ls-grid-min is set inline by the component.
+   At a 680–880px portrait column this yields the intended two-up cards. */
+@media (min-width: 720px) {
   .ls-items-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--ls-grid-min, 280px), 1fr));
@@ -206,22 +271,24 @@
   }
 }
 
-/* FAB pinned to the content column instead of the viewport corner.
+/* FAB pinned to the right edge of the content column instead of the viewport
+   corner. The body area spans (100vw - rail), so the column's right edge sits
+   (100vw - rail)/2 - shell/2 in from the window edge.
    On phones (viewport <= column width) this evaluates to exactly 1.25rem —
    pixel-identical to the old `right-5`. */
 .fab-anchor {
   position: fixed;
   bottom: 6rem; /* = old bottom-24 */
-  right: max(1.25rem, calc(50vw - (var(--content-default) / 2) + 1.25rem));
+  right: max(1.25rem, calc((100vw - var(--shell-rail)) / 2 - var(--shell-width) / 2 + 1.25rem));
 }
 
 /* =====================================================
-   MASTER-DETAIL — two-pane split at lg
-   (Only ever rendered at >=lg — the component returns the mobile swap below
-   that — but the rules are still scoped to lg for contract consistency.)
+   MASTER-DETAIL — two-pane split at the split breakpoint
+   (Only ever rendered at >=1080 — the component returns the mobile swap below
+   that — but the rules are still scoped for contract consistency.)
    ===================================================== */
 
-@media (min-width: 1024px) {
+@media (min-width: 1080px) {
   /* When a split is present, the shell's main stops scrolling and hands its
      height down so each pane scrolls independently. */
   .app-shell-main:has(.master-detail) {
@@ -286,23 +353,8 @@
    FORMS — flow columns stay narrow on wide screens
    (Sales/Attendant/Activator flows are hardware-coupled and deliberately
    keep their phone structure; they just get a comfortable narrow column
-   instead of the default one.)
+   instead of the default one. Width comes from the legacy-shell block above.)
    ===================================================== */
-
-@media (min-width: 768px) {
-  /* Flow mains: .sales-main inside a flow container, and the attendant flow
-     main (the non-flow attendant tabs carry .attendant-main-screen). */
-  .sales-flow-container .sales-main,
-  .attendant-container .attendant-main:not(.attendant-main-screen) {
-    max-width: var(--content-narrow);
-  }
-
-  /* Keypad / BLE-devices tool screens opt into the wide column for their
-     service/characteristic tables via this modifier. */
-  .attendant-main--wide {
-    max-width: var(--content-wide);
-  }
-}
 
 /* Inline (non-fullscreen) route-history map: phone height matches the old
    inline 192px; grows on tablet/desktop where 192px reads as a letterbox. */
@@ -310,41 +362,41 @@
   height: 192px;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 720px) {
   .location-map-inline {
     height: 320px;
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1080px) {
   .location-map-inline {
     height: 420px;
   }
 }
 
 /* Home applet launcher: more columns, same 60px icons, still centered */
-@media (min-width: 768px) {
+@media (min-width: 720px) {
   .role-grid {
     grid-template-columns: repeat(auto-fit, 60px);
-    max-width: 560px;
+    max-width: var(--content-narrow);
     margin: 0 auto;
   }
 }
 
 /* =====================================================
-   SHEETS — bottom sheet → capped + centered at md
+   SHEETS — bottom sheet → capped + centered on tablet
    (.select-sheet already handles its own min-width:640px dialog mode in
    globals.css — this covers the draggable .bottom-sheet, which keeps its
    height-drag JS, so it stays bottom-anchored but caps and centers.)
    ===================================================== */
 
-@media (min-width: 768px) {
+@media (min-width: 720px) {
   .bottom-sheet {
     left: 50%;
     right: auto;
     transform: translateX(-50%);
     width: 100%;
-    max-width: 480px;
+    max-width: var(--content-narrow);
   }
 }
 
@@ -353,9 +405,9 @@
    ===================================================== */
 
 /* Rollup folder/record card lists: single column on phones, auto-fill grid
-   at md+. !important is needed because the mobile base is an inline
+   on tablet+. !important is needed because the mobile base is an inline
    display:flex style on the same element. */
-@media (min-width: 768px) {
+@media (min-width: 720px) {
   .dashboard-card-list {
     display: grid !important;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -364,15 +416,15 @@
 }
 
 /* =====================================================
-   TIMELINE — flow stepper fan-out at md
+   TIMELINE — flow stepper fan-out on tablet
    ===================================================== */
 
-@media (min-width: 768px) {
+@media (min-width: 720px) {
   /* Steps fan out instead of horizontally scrolling, aligned to the column */
   .flow-timeline {
     overflow-x: visible;
     width: 100%;
-    max-width: var(--content-default);
+    max-width: var(--shell-width);
     margin: 0 auto;
   }
 

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useMediaQuery } from '@/lib/hooks';
-import { breakpoint } from '@/styles/tokens';
+import { layout } from '@/styles/tokens';
 
 export interface MasterDetailProps {
   /** The list pane — always mounted on desktop, sole view on mobile when no detail is active. */
@@ -16,16 +16,18 @@ export interface MasterDetailProps {
 }
 
 /**
- * MasterDetail — two-pane list|detail split at lg (1024px+).
+ * MasterDetail — two-pane list|detail split at the split breakpoint (1080px+).
  *
- * Mobile (<lg): exactly the pre-existing behavior — the panes swap based on
+ * Below the split: exactly the pre-existing behavior — the panes swap based on
  * the applet's own `screen` state; only one is mounted (lists fetch data, so
- * both panes must NOT mount on phones).
+ * both panes must NOT mount on phones). Every tablet in portrait lands here,
+ * including iPad Pro 13" at 1024, which is why the threshold is 1080 and not
+ * Tailwind's 1024 — see `layout` in styles/tokens.ts.
  *
- * Desktop (>=lg): list stays mounted in a fixed-width left pane with its own
+ * At or above it: list stays mounted in a fixed-width left pane with its own
  * scroll, detail (or `placeholder`) fills the right pane. Selection state
  * still lives in the applet — this component is purely presentational, so a
- * live resize across the lg boundary loses nothing.
+ * live resize across the boundary loses nothing.
  *
  * JS switching (not CSS visibility) is deliberate here; useMediaQuery's
  * pre-hydration default is `false` → mobile render, the safe fallback.
@@ -36,7 +38,7 @@ const MasterDetail: React.FC<MasterDetailProps> = ({
   isDetailActive,
   placeholder,
 }) => {
-  const isDesktop = useMediaQuery(`(min-width: ${breakpoint.lg})`);
+  const isDesktop = useMediaQuery(`(min-width: ${layout.split})`);
 
   if (!isDesktop) {
     return <>{isDetailActive ? detail : list}</>;

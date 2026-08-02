@@ -237,7 +237,19 @@
   --content-default: 430px;  /* lists, details */
   --content-wide: 430px;     /* tables, dashboards */
 
-  /* Desktop navigation rail (>=lg), see responsive.css NAV section */
+  /* The width the surrounding shell is actually using. Everything that has to
+     line up with the content column — bottom nav, action bar, FAB — reads this
+     and never a --content-* token directly. A shell picks its variant once
+     (.app-shell--wide, or a legacy container via :has()) and every descendant
+     inherits the same number, so content and chrome cannot disagree. */
+  --shell-width: var(--content-default);
+
+  /* Left inset of the shell body: the nav rail's width while a rail is
+     showing, 0 otherwise. Lets viewport-fixed chrome centre over the content
+     column instead of over the whole window. */
+  --shell-rail: 0px;
+
+  /* Desktop navigation rail (>=split), see responsive.css NAV section */
   --nav-rail-width: 76px;
 }
 

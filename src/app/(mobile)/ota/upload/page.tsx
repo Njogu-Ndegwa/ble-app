@@ -139,7 +139,7 @@ const FileUploadPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-page p-4">
-      <div className="max-w-4xl mx-auto">
+      <div className="content-col--wide mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">{t('Upload Documents')}</h1>

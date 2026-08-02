@@ -22,26 +22,57 @@ rejected:
 1. **Additive only.** Responsive behavior arrives via `@media (min-width: …)`
    rules (or `md:`/`lg:` Tailwind prefixes) — never by rewriting a base
    (mobile) declaration. Mobile must stay pixel-identical.
-2. **One breakpoint vocabulary** — the Tailwind defaults:
-   `640` (sm) / `768` (md, tablet) / `1024` (lg, nav rail + master-detail) /
-   `1280` (xl, desktop). The same values are exported as `breakpoint` in
-   `tokens.ts` for JS-side switches (`useMediaQuery`).
+2. **One breakpoint vocabulary** — `720` (tablet portrait) / `1080` (nav rail +
+   master-detail) / `1280` (desktop), exported as `layout` in `tokens.ts` for
+   JS-side switches (`useMediaQuery`).
+
+   These are deliberately **not** Tailwind's defaults. Tailwind's `768` sits
+   above iPad Mini portrait (744px), so that tablet got the phone layout; its
+   `1024` lands exactly on iPad Pro 13" portrait, so a portrait tablet got the
+   desktop split with a list pane narrower than the phone's. `1080` sits in the
+   gap between the widest tablet portrait (1024) and the narrowest tablet
+   landscape (1133), which is what makes the rule hold: **a tablet in portrait
+   is a big phone; a tablet in landscape is a small desktop.** Tailwind's
+   `sm:`/`md:` prefixes stay available for non-layout component styling and
+   still map to `breakpoint` in `tokens.ts`.
 3. **No hardcoded max-widths** (CSS `max-width` or Tailwind `max-w-*`).
    Content width comes only from the `--content-narrow` / `--content-default` /
    `--content-wide` tokens — in JSX use `<ContentColumn>` or AppShell's
    `width` prop (`src/components/layout/`).
-4. **No per-applet shell CSS.** The legacy `*-container` classes in
-   globals.css are frozen; applets use `<AppShell>` which owns positioning,
-   the nav rail, gradient, and bottom bars.
-5. **All min-width CSS lives in `responsive.css`**, imported after
+4. **Chrome reads `--shell-width`, never a `--content-*` token directly.**
+   Anything that must line up with the content column — tab bar, action bar,
+   header, FAB — reads the single inherited `--shell-width`. A shell declares
+   its variant once (`.app-shell--wide`, or a legacy container via `:has()`)
+   and everything inside inherits it. Every layout bug found in review was one
+   of these picking its own token and drifting from the column it sat under.
+5. **No per-applet shell CSS.** The legacy `*-container` classes in
+   globals.css are frozen; new applets use `<AppShell>` which owns positioning,
+   the nav rail, gradient, and bottom bars. Eight applets still render the
+   legacy shells — they are held to the same width contract through the
+   LEGACY SHELLS block in `responsive.css`, not through new per-applet rules.
+6. **All min-width CSS lives in `responsive.css`**, imported after
    globals.css so overrides win by source order and every responsive rule is
-   greppable in one place.
-6. **Sheets:** new bottom sheets reuse `.bottom-sheet` / `SelectSheet` — both
+   greppable in one place. Note that source order only settles *specificity
+   ties*: a descendant selector added to globals.css (e.g.
+   `.attendant-container.has-bottom-nav .attendant-main`) still outranks a
+   single-class rule here regardless of import order.
+7. **Sheets:** new bottom sheets reuse `.bottom-sheet` / `SelectSheet` — both
    already center/cap on wide screens; don't fork them.
 
-Verification: `node tests/visual/capture.mjs` + `tests/visual/compare.mjs`
-diff the app at 390/768/1024/1440 against `tests/visual-baseline`
-(the 390 set must always diff clean).
+## Verification
+
+- `node tests/visual/assert-widths.mjs` — asserts rules 2 and 4 mechanically:
+  content, tab bar, action bar, header and FAB must agree on width at twelve
+  real tablet viewports, nothing may scroll sideways, the split must not appear
+  below 1080, and the CSS breakpoints must still match the `layout` tokens.
+  This is the check to run first; it fails loudly instead of needing an eye.
+- `node tests/visual/capture.mjs` + `tests/visual/compare.mjs` diff the app
+  against `tests/visual-baseline` (**the 390 set must always diff clean** —
+  that is the mobile-is-production gate).
+  Be aware some captures are inherently non-deterministic: the rider greeting
+  is time-of-day, activity tabs use relative timestamps, and map tiles load
+  over the network. Confirm a suspected regression by capturing the same build
+  twice and diffing the two runs against each other before believing it.
 
 ## Quick Start
 

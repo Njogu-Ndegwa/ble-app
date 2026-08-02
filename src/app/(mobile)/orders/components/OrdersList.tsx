@@ -106,6 +106,7 @@ export default function OrdersList({ onSelect, onCreateNew }: OrdersListProps) {
   return (
     <ListScreen
       title="Orders"
+      gridMinWidth={300}
       searchPlaceholder="Search orders by name, customer..."
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}

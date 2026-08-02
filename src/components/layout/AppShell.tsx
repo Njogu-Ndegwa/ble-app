@@ -40,12 +40,21 @@ export interface AppShellProps {
 /**
  * AppShell — the one applet shell.
  *
- * Replaces the five duplicated `*-container` fixed shells in globals.css
- * (.sales-container, .attendant-container, .rider-container,
- * .login-page-container, .select-role-container). Base styles reproduce the
- * mobile shell exactly; at lg+ the shell becomes a row with a nav rail on the
- * left (when `nav` is provided). All shell CSS lives in the SHELL/NAV sections
- * of src/styles/responsive.css — never add per-applet shell CSS.
+ * The forward path for applet shells, replacing the five duplicated
+ * `*-container` shells in globals.css (.sales-container, .attendant-container,
+ * .rider-container, .login-page-container, .select-role-container). Those five
+ * are frozen, not yet gone — several applets still use them, so don't assume
+ * this is the only shell in the app.
+ *
+ * Base styles reproduce the mobile shell exactly; at the split breakpoint the
+ * shell becomes a row with a nav rail on the left (when `nav` is provided).
+ *
+ * The `width` variant is declared on the ROOT, not on <main>, so that
+ * --shell-width cascades to the bottom bar, the tab bar and the FAB. That is
+ * what keeps the content column and its chrome from disagreeing about width —
+ * they read one inherited variable rather than each picking a --content-* token.
+ * All shell CSS lives in the SHELL/NAV sections of src/styles/responsive.css —
+ * never add per-applet shell CSS.
  */
 const AppShell: React.FC<AppShellProps> = ({
   children,
@@ -56,7 +65,7 @@ const AppShell: React.FC<AppShellProps> = ({
   width = 'default',
   className = '',
 }) => (
-  <div className={`app-shell ${className}`.trim()}>
+  <div className={`app-shell app-shell--${width} ${className}`.trim()}>
     {nav && (
       <NavRail
         items={nav.items}
@@ -67,7 +76,7 @@ const AppShell: React.FC<AppShellProps> = ({
     <div className="app-shell-body">
       {background === 'gradient' && <div className="app-shell-bg-gradient" />}
       {header !== false && <AppHeader {...(header ?? {})} />}
-      <main className={`app-shell-main app-shell-main--${width}`}>
+      <main className="app-shell-main">
         {children}
       </main>
       {bottomBar && <div className="app-shell-bottom">{bottomBar}</div>}

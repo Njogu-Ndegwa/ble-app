@@ -109,6 +109,7 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
   return (
     <ListScreen
       title="Products"
+      gridMinWidth={300}
       searchPlaceholder="Search products by name, SKU..."
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}

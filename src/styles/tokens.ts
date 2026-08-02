@@ -363,9 +363,9 @@ export const zIndex = {
 
 /**
  * Mirrors Tailwind's default screens (tailwind.config.ts defines no custom
- * `screens` key). Media queries can't read CSS vars, so this map is the
- * JS-side source of truth for useMediaQuery()/useWindowSize() switches.
- * md = tablet, lg = nav rail + master-detail, xl = desktop.
+ * `screens` key), for any `sm:`/`md:` utility classes in components.
+ *
+ * Do NOT use these for layout switches — see `layout` below.
  */
 export const breakpoint = {
   sm: '640px',
@@ -373,6 +373,30 @@ export const breakpoint = {
   lg: '1024px',
   xl: '1280px',
   '2xl': '1536px',
+} as const;
+
+/**
+ * Layout breakpoints — the JS-side source of truth for useMediaQuery()
+ * switches, and the exact values used by src/styles/responsive.css.
+ *
+ * These deliberately differ from Tailwind's defaults because Tailwind's were
+ * not chosen for tablet hardware: 768 sits above iPad Mini portrait (744), so
+ * a tablet would get the phone layout, and 1024 lands exactly on iPad Pro 13"
+ * portrait, so a portrait tablet would get the desktop two-pane split with a
+ * list pane narrower than the phone's.
+ *
+ * `split` at 1080 sits in the gap between the widest tablet portrait (1024)
+ * and the narrowest tablet landscape (1133), which is what makes the rule
+ * "a tablet in portrait is a big phone, a tablet in landscape is a small
+ * desktop" hold for every device we support.
+ *
+ * Changing a value here means changing the matching @media in responsive.css.
+ * tests/visual/assert-widths.mjs fails if the two drift apart.
+ */
+export const layout = {
+  tablet: '720px',  // phone → tablet portrait
+  split: '1080px',  // → nav rail + master-detail
+  desktop: '1280px',
 } as const;
 
 // ============================================
@@ -428,6 +452,7 @@ const tokens = {
   transition,
   zIndex,
   breakpoint,
+  layout,
   componentSize,
 } as const;
 
