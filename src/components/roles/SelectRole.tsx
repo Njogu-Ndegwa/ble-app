@@ -86,7 +86,8 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
 /**
  * Service Accounts allowed to see roles flagged `trialSaOnly`, by id.
  *
- *   3 → "OV Kenya(Test)"
+ *   3  → "OV Kenya(Test)"
+ *   43 → "Shenzen-Service"  (added so the firmware side can review the flow)
  *
  * Matching on id rather than on a /test/i name pattern is deliberate: the name
  * match also caught "Test Company" (11) and "Test-Sales_SA" (40), and would
@@ -97,7 +98,7 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
  * backend applet-slug change; replace it with a real slug once the applet is
  * released.
  */
-const TRIAL_SA_IDS: readonly number[] = [3];
+const TRIAL_SA_IDS: readonly number[] = [3, 43];
 
 const ALL_ROLES: RoleConfig[] = [
   {
