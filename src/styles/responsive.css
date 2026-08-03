@@ -378,12 +378,45 @@
   }
 }
 
-/* Home applet launcher: more columns, same 60px icons, still centered */
+/* Home applet launcher ("My Apps").
+   Phone-sized 60px icons in a narrow column look lost on a tablet — a strip of
+   tiny tiles against half a screen of empty space. Three things fix that:
+
+   1. The tile scales (--role-tile), so icons keep their weight on a bigger
+      display instead of shrinking relative to everything around them.
+   2. The grid fills the content column, so it lines up with the hero card above
+      it and the page reads as one column rather than a narrow inset strip.
+   3. Tiles align to the start. The mobile base centres each row, which is
+      invisible on a phone because four tiles fill the width exactly; once a row
+      holds six, a section with two apps drifts to the middle while its heading
+      stays left, and the tiles stop reading as belonging to that heading.
+
+   The wider tile also buys the label enough room to stop truncating, so
+   "Swap Attendant" and "Device Manager" read in full instead of as
+   "Swap Attend…" and "Device Mana…". */
 @media (min-width: 720px) {
   .role-grid {
-    grid-template-columns: repeat(auto-fit, 60px);
-    max-width: var(--content-narrow);
-    margin: 0 auto;
+    --role-tile: 76px;
+    grid-template-columns: repeat(auto-fit, var(--role-tile));
+    justify-content: start;
+    gap: 28px 30px;
+  }
+
+  .role-grid .role-app-icon {
+    width: var(--role-tile);
+    height: var(--role-tile);
+  }
+
+  .role-grid .role-app-label {
+    max-width: calc(var(--role-tile) + 32px);
+    font-size: var(--font-sm);
+  }
+}
+
+@media (min-width: 1080px) {
+  .role-grid {
+    --role-tile: 88px;
+    gap: 32px 34px;
   }
 }
 

@@ -51,6 +51,12 @@ const VIEWPORTS = argValue(
 })
 
 const ROUTES = [
+  // The applet launcher ("My Apps") — the first screen every user sees, and
+  // the one screen that is neither an applet nor a flow, so it is easy to leave
+  // out of a sweep. Its tiles animate in (appletReveal), so it needs longer to
+  // settle than an applet; at the default wait it renders no shell yet and gets
+  // silently skipped rather than checked.
+  { path: '/', slug: 'launcher', settleMs: 5000 },
   { path: '/orders', slug: 'orders' },
   { path: '/products', slug: 'products' },
   { path: '/fleets', slug: 'fleets' },
@@ -195,7 +201,7 @@ const MEASURE = () => {
   // The content column, whichever shell is in play.
   const content =
     box('.app-shell-main') || box('.attendant-main') || box('.sales-main') ||
-    box('.rider-main') || box('.content-col--wide')
+    box('.rider-main') || box('.select-role-main') || box('.content-col--wide')
 
   // The width the shell DECLARED, which is the number chrome must honour. The
   // innermost content column may legitimately be narrower — flows deliberately
@@ -254,7 +260,7 @@ async function main() {
         await page
           .waitForFunction(() => !document.querySelector('.loading-spinner'), { timeout: 20_000 })
           .catch(() => {})
-        await page.waitForTimeout(2000)
+        await page.waitForTimeout(route.settleMs ?? 2000)
 
         const m = await page.evaluate(MEASURE)
 
