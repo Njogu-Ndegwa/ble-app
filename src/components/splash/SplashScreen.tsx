@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import { preloadRoleIcons } from '@/lib/preload-icons';
+import { dismissHtmlSplash as removeHtmlSplash } from '@/lib/html-splash';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -12,14 +13,14 @@ interface SplashScreenProps {
 
 type Phase = 'init' | 'animating' | 'hiding';
 
+/**
+ * Hand over from the static overlay to this component's animation. `markShown`
+ * stays false because the splash isn't "shown" until the animation finishes —
+ * `page.tsx` sets that flag in onComplete, so a reload part-way through still
+ * plays it.
+ */
 function dismissHtmlSplash() {
-  const el = document.getElementById('html-splash');
-  if (!el) return;
-  el.style.opacity = '0';
-  el.style.pointerEvents = 'none';
-  setTimeout(() => {
-    el.style.display = 'none';
-  }, 350);
+  removeHtmlSplash({ markShown: false });
 }
 
 export default function SplashScreen({ 

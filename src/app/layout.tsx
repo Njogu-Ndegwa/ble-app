@@ -3,6 +3,7 @@ import "./globals.css";
 // Must stay after globals.css: all min-width overrides win by source order.
 import "../styles/responsive.css";
 import ClientProviders from "./ClientProviders";
+import DismissHtmlSplash from "@/components/splash/DismissHtmlSplash";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -81,6 +82,10 @@ export default function RootLayout({
             __html: `(function(){var KEY='oves-boot-retries',CKEY='oves-chunk-reload',MAX=1,WAIT=10000;function retryUI(){var el=document.getElementById('html-splash');if(!el)return;el.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:16px;font-family:sans-serif;color:#B0BEC5;padding:24px;text-align:center"><img src="/assets/Logo-Oves.png" alt="" style="height:40px;width:auto"/><div style="font-size:14px;line-height:1.4;max-width:280px">Could not load the app. Check your connection and try again.</div><button id="oves-retry" style="background:#22c55e;color:#04130b;border:0;border-radius:8px;padding:10px 22px;font-size:14px;font-weight:600">Retry</button></div>';var b=document.getElementById('oves-retry');if(b)b.onclick=function(){try{sessionStorage.removeItem(KEY);sessionStorage.removeItem(CKEY);}catch(e){}location.reload();};}setTimeout(function(){if(window.__appBooted)return;var n=0;try{n=parseInt(sessionStorage.getItem(KEY)||'0',10)||0;}catch(e){}if(n<MAX){try{sessionStorage.setItem(KEY,String(n+1));}catch(e){}location.reload();}else{retryUI();}},WAIT);function isChunkErr(m){return !!m&&(/ChunkLoadError/i.test(m)||/Loading (?:CSS )?chunk [\\w-]+ failed/i.test(m)||/error loading dynamically imported module/i.test(m)||/Importing a module script failed/i.test(m));}function onChunkFail(){var n=0;try{n=parseInt(sessionStorage.getItem(CKEY)||'0',10)||0;}catch(e){}if(n>=MAX)return;try{sessionStorage.setItem(CKEY,String(n+1));}catch(e){}location.reload();}window.addEventListener('error',function(e){var t=e&&e.target;if(t&&t.tagName==='SCRIPT'&&t.src&&t.src.indexOf('/_next/')>-1){onChunkFail();return;}if(e&&isChunkErr(e.message))onChunkFail();},true);window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;if(isChunkErr(r&&(r.message||(''+r))))onChunkFail();});})();`,
           }}
         />
+        {/* Takes the overlay above down on every route that doesn't run its own
+            splash sequence. Without it those routes render underneath it and
+            look permanently stuck. */}
+        <DismissHtmlSplash />
         <ClientProviders>
           {children}
         </ClientProviders>
