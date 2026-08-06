@@ -102,7 +102,8 @@ export interface EnergyData {
 // ============================================
 
 /** Reading phase for DTA → ATT flow */
-export type BleReadingPhase = 'idle' | 'dta' | 'att';
+/** 'fast' = targeted read by UUID; 'att'/'dta' = whole-service fallback reads */
+export type BleReadingPhase = 'idle' | 'dta' | 'att' | 'fast';
 
 export interface BleFullState {
   // Scanning

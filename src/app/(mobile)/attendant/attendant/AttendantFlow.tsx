@@ -2141,7 +2141,17 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         }
         break;
       case 2:
-        handleScanOldBattery();
+        // A first-time customer has no battery to return. Step 2 already tells
+        // them so ("Skip Return" / "no battery to return") and hides the device
+        // list, but the action button was still "Scan Return Battery" with no
+        // skip anywhere - leaving the attendant stuck on a step they cannot
+        // complete. Advance instead of opening a scanner for a battery that
+        // does not exist.
+        if (customerType === 'first-time') {
+          advanceToStep(3);
+        } else {
+          handleScanOldBattery();
+        }
         break;
       case 3:
         handleScanNewBattery();
@@ -2515,6 +2525,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
           swapCost={swapData.cost}
           requireRiderTopUp={requireRiderTopUp}
           noPaymentStep={workflowMode === 'manual-payment'}
+          isFirstTimeCustomer={customerType === 'first-time'}
           readOnly={isReadOnlySession}
         />
 

@@ -31,6 +31,12 @@ import {
   parseBatteryIdFromQr,
 } from './energyUtils';
 import { requiresBluetoothReset } from './bleErrors';
+import {
+  BATTERY_READ_NAMES,
+  extractProductType,
+  fastReadByNames,
+  learnGattMap,
+} from './bleFastRead';
 import type { BatteryData, BleDevice, BleReadingPhase } from './types';
 
 // ============================================
@@ -38,7 +44,9 @@ import type { BatteryData, BleDevice, BleReadingPhase } from './types';
 // ============================================
 
 const DEVICE_MATCH_TIMEOUT = 25000; // 25 seconds to find matching device
-const DEVICE_MATCH_RETRY_INTERVAL = 2000; // Check every 2 seconds
+// Backstop only - matching is driven by the scanner's onDeviceFound callback,
+// so this just covers a device that was already in the list before we started.
+const DEVICE_MATCH_RETRY_INTERVAL = 500;
 const MATCH_CHARS = 6; // Match by last 6 characters
 
 // ============================================
@@ -107,6 +115,13 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   // These are new object references on every render. Instead, use destructured functions.
   // ============================================
 
+  // Set by handleQrScanned while we are hunting for a device; the scanner calls
+  // it the moment a matching advertisement arrives.
+  const deviceFoundMatcherRef = useRef<((device: BleDevice) => void) | null>(null);
+  const handleDeviceFound = useCallback((device: BleDevice) => {
+    deviceFoundMatcherRef.current?.(device);
+  }, []);
+
   const {
     scanState: scannerScanState,
     isReady: scannerIsReady,
@@ -115,7 +130,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     clearDevices: scannerClearDevices,
     findDeviceByNameSuffix: scannerFindDeviceByNameSuffix,
     getDevices: scannerGetDevices,
-  } = useBleDeviceScanner({ debug, nameFilter: 'OVES' });
+  } = useBleDeviceScanner({ debug, nameFilter: 'OVES', onDeviceFound: handleDeviceFound });
 
   const {
     connectionState,
@@ -159,6 +174,12 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   const matchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const matchIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isProcessingRef = useRef(false);
+  // Advertised name of the device we connected to - the GATT layout cache is
+  // keyed by product type, which is derived from that name.
+  const connectedDeviceNameRef = useRef<string | null>(null);
+  // Bumped by any teardown; in-flight async reads compare against it and bail
+  // out rather than resolving into state that has already been reset.
+  const readGenerationRef = useRef(0);
   // Track when we're in device matching phase (after QR scan, before actual connection)
   const isDeviceMatchingRef = useRef(false);
   // CRITICAL: Force closed flag - when true, sync effect will not override with active states
@@ -225,7 +246,13 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     // Set or clear force closed flag based on operation type
     forceClosedRef.current = setForceClosedFlag;
-    
+
+    // Invalidate any in-flight targeted read so it cannot resolve into the
+    // state we are about to clear
+    readGenerationRef.current += 1;
+    deviceFoundMatcherRef.current = null;
+    connectedDeviceNameRef.current = null;
+
     // Clear all timers
     clearMatchTimers();
     
@@ -336,26 +363,119 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   // CONNECTION → SERVICE READING (ATT → DTA flow)
   // ============================================
 
-  // When connected, automatically start reading ATT service first (battery ID)
+  /**
+   * Finish a read: build the battery record, disconnect, notify the caller.
+   * Shared by the fast path and the ATT→DTA fallback so they cannot drift.
+   */
+  const completeBatteryRead = useCallback((
+    batteryId: string,
+    scanType: 'old_battery' | 'new_battery',
+    mac: string,
+    energyData: ReturnType<typeof extractEnergyFromDta>,
+    actualBatteryId: string | undefined
+  ) => {
+    if (!energyData) return false;
+
+    const battery = createBatteryData(batteryId, energyData, mac || undefined, actualBatteryId || undefined);
+    log('Battery data extracted with actual ID:', battery);
+
+    if (mac) connectionDisconnect(mac);
+
+    if (scanType === 'old_battery') {
+      onOldBatteryReadRef.current?.(battery);
+    } else if (scanType === 'new_battery') {
+      onNewBatteryReadRef.current?.(battery);
+    }
+
+    setPendingBatteryId(null);
+    setPendingScanType(null);
+    setReadingPhase('idle');
+    setDtaData(null);
+    isProcessingRef.current = false;
+    return true;
+  }, [connectionDisconnect, log]);
+
+  // When connected, read the battery.
+  //
+  // Fast path: read only the characteristics we need, by UUID, using the GATT
+  // layout learned from a previous full read of this product type. Measured on
+  // device this is ~0.4 s versus ~8 s for the two whole-service reads, because
+  // the native initServiceBleData reads every characteristic and descriptor in
+  // the service (32 of them in DTA) to get the four values we use.
+  //
+  // Fallback: the original ATT → DTA service reads, which also re-learn the
+  // layout - so the first battery of a new product type pays the old cost once
+  // and every one after it is fast.
   useEffect(() => {
     if (
-      isConnected &&
-      connectedDevice &&
-      pendingBatteryId &&
-      !isProcessingRef.current &&
-      readingPhase === 'idle'
+      !isConnected ||
+      !connectedDevice ||
+      !pendingBatteryId ||
+      isProcessingRef.current ||
+      readingPhase !== 'idle'
     ) {
-      log('Connected! Starting ATT service read (Step 1/2) - Reading Battery ID');
-      isProcessingRef.current = true;
-      setReadingPhase('att');
-      readAttService(connectedDevice);
+      return;
     }
+
+    isProcessingRef.current = true;
+    const mac = connectedDevice;
+    const batteryId = pendingBatteryId;
+    const scanType = pendingScanType;
+    const productType = extractProductType(connectedDeviceNameRef.current);
+
+    // The effect re-runs when readingPhase changes (including changes we make
+    // below), so an effect-cleanup flag would cancel our own in-flight read.
+    // Tie the async continuation to a generation that only a real teardown bumps.
+    const generation = readGenerationRef.current;
+    const cancelled = () => readGenerationRef.current !== generation;
+
+    const startFallback = () => {
+      if (cancelled()) return;
+      log('Connected! Starting ATT service read (Step 1/2) - Reading Battery ID');
+      setReadingPhase('att');
+      readAttService(mac);
+    };
+
+    (async () => {
+      if (!productType || !scanType) {
+        startFallback();
+        return;
+      }
+
+      setReadingPhase('fast');
+      const fast = await fastReadByNames(mac, productType, BATTERY_READ_NAMES);
+
+      if (cancelled()) return;
+
+      if (!fast) {
+        log('Fast read unavailable for product type', productType, '- falling back to service reads');
+        startFallback();
+        return;
+      }
+
+      const energyData = extractEnergyFromDta({ characteristicList: fast.characteristicList });
+      const actualBatteryId = extractActualBatteryIdFromAtt({ characteristicList: fast.characteristicList });
+
+      if (!energyData) {
+        log('Fast read returned no usable energy data - falling back to service reads');
+        startFallback();
+        return;
+      }
+
+      log('Fast read succeeded', { productType, missing: fast.missing });
+      completeBatteryRead(batteryId, scanType, mac, energyData, actualBatteryId || undefined);
+    })().catch((err) => {
+      log('Fast read threw - falling back to service reads:', err);
+      startFallback();
+    });
   }, [
     isConnected,
     connectedDevice,
     pendingBatteryId,
+    pendingScanType,
     readAttService,
     readingPhase,
+    completeBatteryRead,
     log,
   ]);
 
@@ -385,7 +505,11 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
         }
         
         log('ATT service data received (Step 1/2) - Extracting battery ID');
-        
+
+        // Record where these characteristics live so the next battery of this
+        // product type can be read directly by UUID instead of service-wide.
+        learnGattMap(extractProductType(connectedDeviceNameRef.current), lastServiceData);
+
         // Extract actual battery ID from ATT (opid or ppid)
         const actualBatteryId = extractActualBatteryIdFromAtt(lastServiceData);
         
@@ -413,44 +537,26 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
         }
         
         log('DTA service data received (Step 2/2) - Extracting energy data');
-        
+
+        // Same as the ATT branch: learn the layout for next time
+        learnGattMap(extractProductType(connectedDeviceNameRef.current), lastServiceData);
+
         // Extract energy data from DTA
         const energyData = extractEnergyFromDta(lastServiceData);
-        
+
         // Get the stored actualBatteryId from the ATT phase
         const actualBatteryId = (dtaData as { actualBatteryId?: string })?.actualBatteryId;
-        
+
         if (energyData) {
-          // Create battery data with actual battery ID from ATT
-          const battery = createBatteryData(
-            pendingBatteryId,
-            energyData,
-            connectedDevice || undefined,
-            actualBatteryId || undefined
-          );
-          
-          log('Battery data extracted with actual ID:', battery);
-          
-          // Disconnect from device
-          if (connectedDevice) {
-            connectionDisconnect(connectedDevice);
-          }
-          
-          // Notify appropriate callback based on scan type
           // NOTE: Toast notifications are handled by the caller (AttendantFlow/SalesFlow)
           // to avoid duplicate notifications
-          if (pendingScanType === 'old_battery') {
-            onOldBatteryReadRef.current?.(battery);
-          } else if (pendingScanType === 'new_battery') {
-            onNewBatteryReadRef.current?.(battery);
-          }
-          
-          // Clear pending state
-          setPendingBatteryId(null);
-          setPendingScanType(null);
-          setReadingPhase('idle');
-          setDtaData(null);
-          isProcessingRef.current = false;
+          completeBatteryRead(
+            pendingBatteryId,
+            pendingScanType,
+            connectedDevice,
+            energyData,
+            actualBatteryId || undefined
+          );
         } else {
           log('Failed to extract energy data from DTA - using consolidated cleanup');
           
@@ -482,6 +588,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     readDtaService,
     connectionDisconnect,
     cleanupAllBleState,
+    completeBatteryRead,
     log,
   ]);
 
@@ -616,38 +723,58 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     }));
     
     // Set up device matching
+    let hasConnected = false;
+    const connectToMatch = (matched: BleDevice) => {
+      if (hasConnected) return true;
+      hasConnected = true;
+
+      log('Found matching device:', matched);
+      clearMatchTimers();
+      deviceFoundMatcherRef.current = null;
+      scannerStopScan();
+
+      // Exit device matching phase - actual connection is starting
+      isDeviceMatchingRef.current = false;
+
+      // Remember the advertised name: the GATT layout cache is keyed by the
+      // product type encoded in it.
+      connectedDeviceNameRef.current = matched.name || null;
+
+      // Connect to matched device
+      connectionConnect(matched.macAddress);
+      return true;
+    };
+
     const matchDevice = () => {
       const targetSuffix = batteryId.slice(-MATCH_CHARS).toLowerCase();
       log('Looking for device with suffix:', targetSuffix);
-      
+
       const devices = scannerGetDevices();
       log('Available devices:', devices.map(d => d.name));
-      
+
       // Find matching device
       const matched = scannerFindDeviceByNameSuffix(batteryId, MATCH_CHARS);
-      
-      if (matched) {
-        log('Found matching device:', matched);
-        clearMatchTimers();
-        scannerStopScan();
-        
-        // Exit device matching phase - actual connection is starting
-        isDeviceMatchingRef.current = false;
-        
-        // Connect to matched device
-        connectionConnect(matched.macAddress);
-        return true;
-      }
-      
-      return false;
+
+      return matched ? connectToMatch(matched) : false;
     };
-    
-    // Try matching immediately
+
+    // Connect the instant a matching advertisement arrives, rather than waiting
+    // for the next poll tick. Advertisements land every ~100-300 ms, so polling
+    // was adding up to a full interval of dead time to every scan.
+    const targetSuffix = batteryId.slice(-MATCH_CHARS).toLowerCase();
+    deviceFoundMatcherRef.current = (device: BleDevice) => {
+      if (hasConnected) return;
+      if ((device.name || '').toLowerCase().slice(-MATCH_CHARS) === targetSuffix) {
+        connectToMatch(device);
+      }
+    };
+
+    // Try matching immediately against devices already discovered
     if (matchDevice()) {
       return true;
     }
-    
-    // Set up interval to check for device
+
+    // Backstop poll in case an advertisement was missed
     matchIntervalRef.current = setInterval(() => {
       matchDevice();
     }, DEVICE_MATCH_RETRY_INTERVAL);
@@ -699,7 +826,11 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     // Clear force closed flag to allow sync effect to manage state
     forceClosedRef.current = false;
-    
+
+    // Invalidate any in-flight targeted read
+    readGenerationRef.current += 1;
+    deviceFoundMatcherRef.current = null;
+
     // Clear match timers
     clearMatchTimers();
     

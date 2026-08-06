@@ -19,6 +19,8 @@ interface ActionBarProps {
   requireRiderTopUp?: boolean;
   /** Manual Swap: no payment step — the Review action completes the swap directly. */
   noPaymentStep?: boolean;
+  /** First-time customer: step 2 has nothing to return, so offer a skip. */
+  isFirstTimeCustomer?: boolean;
   readOnly?: boolean;
 }
 
@@ -66,7 +68,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: AttendantStep, inputMode?: InputMode, hasSufficientQuota?: boolean, paymentInputMode?: InputMode, swapCost?: number, requireRiderTopUp?: boolean, noPaymentStep?: boolean): StepActionConfig => {
+const getStepConfig = (step: AttendantStep, inputMode?: InputMode, hasSufficientQuota?: boolean, paymentInputMode?: InputMode, swapCost?: number, requireRiderTopUp?: boolean, noPaymentStep?: boolean, isFirstTimeCustomer?: boolean): StepActionConfig => {
   switch (step) {
     case 1:
       // Show different text/icon based on input mode
@@ -75,6 +77,11 @@ const getStepConfig = (step: AttendantStep, inputMode?: InputMode, hasSufficient
       }
       return { showBack: false, mainTextKey: 'attendant.scanQr', mainIcon: 'qr' };
     case 2:
+      // First-time customers have nothing to return - offer the skip the step
+      // already describes, rather than a scan they cannot perform.
+      if (isFirstTimeCustomer) {
+        return { showBack: true, mainTextKey: 'attendant.skipReturn', mainIcon: 'arrow' };
+      }
       return { showBack: true, mainTextKey: 'attendant.scanReturnBattery', mainIcon: 'scan' };
     case 3:
       return { showBack: true, mainTextKey: 'attendant.scanNewBattery', mainIcon: 'scan' };
@@ -113,9 +120,9 @@ const getStepConfig = (step: AttendantStep, inputMode?: InputMode, hasSufficient
   }
 };
 
-export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, paymentInputMode, hasSufficientQuota, swapCost, requireRiderTopUp, noPaymentStep, readOnly }: ActionBarProps) {
+export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, paymentInputMode, hasSufficientQuota, swapCost, requireRiderTopUp, noPaymentStep, isFirstTimeCustomer, readOnly }: ActionBarProps) {
   const { t } = useI18n();
-  const config = getStepConfig(currentStep, inputMode, hasSufficientQuota, paymentInputMode, swapCost, requireRiderTopUp, noPaymentStep);
+  const config = getStepConfig(currentStep, inputMode, hasSufficientQuota, paymentInputMode, swapCost, requireRiderTopUp, noPaymentStep, isFirstTimeCustomer);
 
   // Don't show the action bar button for step 1 in manual mode - button is in the form
   const hideMainButton = currentStep === 1 && inputMode === 'manual';

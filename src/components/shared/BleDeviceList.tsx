@@ -71,7 +71,7 @@ interface BleDeviceListProps {
  * Example device names: "OVES BATT 45AH2311000102", "OVES Batt 45AH2311000103"
  */
 export function isBatteryDevice(deviceName: string): boolean {
-  const nameParts = deviceName.split(' ');
+  const nameParts = deviceName.trim().split(/\s+/);
   if (nameParts.length >= 2) {
     const deviceType = nameParts[1].toLowerCase();
     return deviceType === 'batt';
@@ -80,12 +80,26 @@ export function isBatteryDevice(deviceName: string): boolean {
 }
 
 /**
- * Filter a list of BLE devices to only include batteries
- * @param devices - Array of BLE devices to filter
- * @returns Array of devices that are batteries
+ * Filter the device list for the battery pickers.
+ *
+ * Batteries sort first, but other OVES units are no longer hidden. Requiring
+ * the second word to be exactly "batt" silently drops any unit whose
+ * advertised name doesn't follow that shape - an S-6 advertises as "OVES S-6",
+ * and a battery whose complete local name is truncated by the scan record
+ * loses its serial too. In both cases the device is perfectly readable over
+ * GATT, but the operator sees an empty list and no explanation.
+ *
+ * The scan layer already restricts discovery to OVES devices, so the worst
+ * case here is showing an OVES unit that isn't a battery - which the operator
+ * can see from the name, and which the read path handles anyway.
  */
 export function filterBatteryDevices(devices: BleDevice[]): BleDevice[] {
-  return devices.filter(device => isBatteryDevice(device.name));
+  return [...devices].sort((a, b) => {
+    const aBatt = isBatteryDevice(a.name) ? 0 : 1;
+    const bBatt = isBatteryDevice(b.name) ? 0 : 1;
+    if (aBatt !== bBatt) return aBatt - bBatt;
+    return b.rawRssi - a.rawRssi; // strongest signal first within each group
+  });
 }
 
 /**

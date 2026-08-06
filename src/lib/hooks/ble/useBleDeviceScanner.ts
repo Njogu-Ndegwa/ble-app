@@ -38,6 +38,12 @@ export interface UseBleDeviceScannerOptions {
   autoStart?: boolean;
   /** Enable debug logging */
   debug?: boolean;
+  /**
+   * Called synchronously for every advertisement that passes the filter.
+   * Lets a caller react the instant its target appears instead of polling the
+   * device list on a timer.
+   */
+  onDeviceFound?: (device: BleDevice) => void;
 }
 
 // ============================================
@@ -61,7 +67,14 @@ export interface UseBleDeviceScannerOptions {
  * } = useBleDeviceScanner({ nameFilter: 'OVES' });
  */
 export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
-  const { nameFilter = 'OVES', autoStart = false, debug = false } = options;
+  const { nameFilter = 'OVES', autoStart = false, debug = false, onDeviceFound } = options;
+
+  // Kept in a ref so the bridge handler always sees the latest callback without
+  // being re-registered (re-registering mid-scan drops advertisements).
+  const onDeviceFoundRef = useRef(onDeviceFound);
+  useEffect(() => {
+    onDeviceFoundRef.current = onDeviceFound;
+  }, [onDeviceFound]);
 
   const log = useCallback((...args: unknown[]) => {
     if (debug) console.info('[BLE Scanner]', ...args);
@@ -247,12 +260,21 @@ export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
             // Sort by signal strength (strongest first)
             detectedDevicesRef.current.sort((a, b) => b.rawRssi - a.rawRssi);
             
+            // Notify listeners before the state update so a caller waiting for
+            // this specific device can act on the same tick rather than waiting
+            // for React to commit and a poll to come round.
+            try {
+              onDeviceFoundRef.current?.(device);
+            } catch (err) {
+              log('onDeviceFound listener threw:', err);
+            }
+
             // Update state
             setScanState(prev => ({
               ...prev,
               detectedDevices: [...detectedDevicesRef.current],
             }));
-            
+
             resp({ success: true });
           } catch (err) {
             log('Error parsing device data:', err, 'Raw data:', data);
