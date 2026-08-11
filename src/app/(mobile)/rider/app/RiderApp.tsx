@@ -866,7 +866,9 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
         paymentState: paymentState || undefined,
         balance: energyValue,
         energyKwh: energyRemaining,
-        currency: billingCurrency,
+        // Cache the corrected currency, not the raw ABS one - otherwise every
+        // cold start replays the USD/CFA mismatch until the Odoo fetch lands.
+        currency: odooCurrencyRef.current || billingCurrency,
         energyServiceId: energyServiceState?.service_id || null,
         cachedAt: Date.now(),
       });
