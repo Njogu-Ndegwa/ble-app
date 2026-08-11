@@ -16,6 +16,13 @@ import {
   type TicketMember,
 } from '@/lib/ticket-actors-api';
 
+/**
+ * Tickets are only ever worked by the support team, which lives in SA 270.
+ * The candidate list is pinned here rather than taken from the ticket's own SA
+ * (which would offer up the reseller's members). Mirrors the portal.
+ */
+const ASSIGNEE_SA_ID = 270;
+
 function initials(name: string): string {
   const parts = (name || '?').trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -23,8 +30,6 @@ function initials(name: string): string {
 
 interface TicketAssigneesProps {
   ticketId: number;
-  /** SA the ticket is governed by — its active members are the candidate actors. */
-  saId: number | null;
   /** Reports the loaded actor list upward (the detail view derives the Assigned-to row from it). */
   onActorsChange?: (actors: TicketActor[]) => void;
 }
@@ -36,7 +41,7 @@ type PendingAction =
   | { kind: 'remove'; actor: TicketActor }
   | { kind: 'promote'; actor: TicketActor };
 
-export default function TicketAssignees({ ticketId, saId, onActorsChange }: TicketAssigneesProps) {
+export default function TicketAssignees({ ticketId, onActorsChange }: TicketAssigneesProps) {
   const { t } = useI18n();
   const [actors, setActors] = useState<TicketActor[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,22 +79,19 @@ export default function TicketAssignees({ ticketId, saId, onActorsChange }: Tick
     load();
   }, [load]);
 
+  // Loads the active support-team members (SA 270).
   const loadMembers = useCallback(async () => {
-    if (saId == null) {
-      setMembers([]);
-      return;
-    }
     setMembersLoading(true);
     setMembersError(null);
     try {
-      setMembers(await getServiceAccountMembers(saId));
+      setMembers(await getServiceAccountMembers(ASSIGNEE_SA_ID));
     } catch (err) {
       setMembers([]);
       setMembersError(err instanceof Error ? err.message : 'Failed to load members');
     } finally {
       setMembersLoading(false);
     }
-  }, [saId]);
+  }, []);
 
   const openSheet = () => {
     setSheetOpen(true);
@@ -217,11 +219,7 @@ export default function TicketAssignees({ ticketId, saId, onActorsChange }: Tick
         loading={membersLoading}
         error={membersError}
         onRetry={loadMembers}
-        emptyText={
-          saId == null
-            ? (t('ticketing.assignees.noSA') || 'No service account on ticket')
-            : (t('ticketing.assignees.noMembers') || 'No members available')
-        }
+        emptyText={t('ticketing.assignees.noMembers') || 'No members available'}
         items={candidateItems}
         onSelect={(item) => {
           const member = members.find((m) => m.partnerId === item.value);

@@ -635,7 +635,6 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
             renderValue: (
               <TicketAssignees
                 ticketId={selectedTicket.id}
-                saId={selectedTicket.saId}
                 onActorsChange={setDetailActors}
               />
             ),
