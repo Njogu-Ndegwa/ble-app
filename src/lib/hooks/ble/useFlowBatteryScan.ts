@@ -180,6 +180,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   // Bumped by any teardown; in-flight async reads compare against it and bail
   // out rather than resolving into state that has already been reset.
   const readGenerationRef = useRef(0);
+  // Counts service responses ignored for belonging to the wrong phase. Purely
+  // diagnostic - it tells the watchdog error apart from "native said nothing".
+  const mismatchCountRef = useRef(0);
   // Track when we're in device matching phase (after QR scan, before actual connection)
   const isDeviceMatchingRef = useRef(false);
   // CRITICAL: Force closed flag - when true, sync effect will not override with active states
@@ -479,6 +482,47 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     log,
   ]);
 
+  // Read watchdog.
+  //
+  // Measured on device: 3 of 87 real-tap reps had the battery read complete
+  // natively (BLEPERF showed link + enumeration + reads all finishing) while
+  // the screen never advanced. The flow was parked in a reading phase waiting
+  // for a response that had already arrived under the wrong service name, or
+  // never arrived at all. The only thing that eventually happened was the
+  // progress modal hitting its own hard stop and closing silently - the
+  // operator saw the sheet disappear and nothing else, which is worse than an
+  // error because there is nothing to react to.
+  //
+  // A read is ~1.7s on device, so 15s in one phase means it is not coming.
+  // Turn that into a disconnect, a specific message, and a clean reset.
+  useEffect(() => {
+    if (readingPhase === 'idle') {
+      mismatchCountRef.current = 0;
+      return;
+    }
+    const phaseAtStart = readingPhase;
+    const generation = readGenerationRef.current;
+    const timer = setTimeout(() => {
+      // Something else already moved us on, or tore the operation down.
+      if (readGenerationRef.current !== generation) return;
+
+      const mismatches = mismatchCountRef.current;
+      log('Read watchdog fired', { phase: phaseAtStart, mismatches });
+
+      if (connectedDevice) connectionDisconnect(connectedDevice);
+      toast.error(
+        mismatches > 0
+          ? 'The battery replied with unexpected data. Please try again.'
+          : 'The battery stopped responding. Please try again.'
+      );
+      onErrorRef.current?.(
+        `Read stalled in ${phaseAtStart} phase after 15s (mismatched responses: ${mismatches})`
+      );
+      cleanupAllBleState(true);
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [readingPhase, connectedDevice, connectionDisconnect, cleanupAllBleState, log]);
+
   // Handle service data received - manages ATT → DTA flow
   // Order: ATT first (battery ID), then DTA (energy data)
   // IMPORTANT: We check serviceNameEnum to ensure we process the correct service data,
@@ -500,7 +544,13 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
         // Verify this is actually ATT data (not stale DTA data from a previous read)
         // serviceNameEnum from native layer is 'ATT_SERVICE', not just 'ATT'
         if (serviceName && !serviceName.includes('ATT')) {
+          // Ignoring a mismatched response used to be an unbounded silent
+          // return: if the expected one never arrived the flow parked here
+          // forever and the operator watched the modal vanish at its 45s hard
+          // stop with no message. Bound it - the read watchdog below turns a
+          // stalled phase into a real error the operator can act on.
           log('Received non-ATT data while in ATT phase, ignoring:', serviceName);
+          mismatchCountRef.current += 1;
           return;
         }
         
@@ -533,6 +583,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
         // serviceNameEnum from native layer is 'DTA_SERVICE', not just 'DTA'
         if (serviceName && !serviceName.includes('DTA')) {
           log('Received non-DTA data while in DTA phase, ignoring:', serviceName);
+          mismatchCountRef.current += 1;
           return;
         }
         
