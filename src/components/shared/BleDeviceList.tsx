@@ -94,12 +94,36 @@ export function isBatteryDevice(deviceName: string): boolean {
  * can see from the name, and which the read path handles anyway.
  */
 export function filterBatteryDevices(devices: BleDevice[]): BleDevice[] {
-  return [...devices].sort((a, b) => {
-    const aBatt = isBatteryDevice(a.name) ? 0 : 1;
-    const bBatt = isBatteryDevice(b.name) ? 0 : 1;
-    if (aBatt !== bBatt) return aBatt - bBatt;
-    return b.rawRssi - a.rawRssi; // strongest signal first within each group
-  });
+  const batteriesOnly = devices.filter((d) => isBatteryDevice(d.name));
+
+  // Shipping behaviour: operators only ever pick batteries, so anything else is
+  // noise at best and a mis-scan at worst. Non-battery OVES units (a VCU, a
+  // charger) are shown ONLY when someone deliberately turns the escape hatch
+  // on - it exists because bench testing sometimes has no battery to hand, and
+  // during that period this function was temporarily widened for everyone.
+  // That must never be the default again.
+  if (batteriesOnly.length === 0 && isNonBatteryScanEnabled()) {
+    return [...devices].sort((a, b) => b.rawRssi - a.rawRssi);
+  }
+
+  return batteriesOnly.sort((a, b) => b.rawRssi - a.rawRssi);
+}
+
+/**
+ * Escape hatch for bench testing without a battery present.
+ *
+ * Off unless explicitly enabled, and enabling it requires either a build-time
+ * env var or a localStorage key set by hand on the test device - neither of
+ * which can happen accidentally in a customer's build.
+ */
+export function isNonBatteryScanEnabled(): boolean {
+  if (process.env.NEXT_PUBLIC_BLE_ALLOW_NON_BATTERY === 'true') return true;
+  try {
+    return typeof window !== 'undefined'
+      && window.localStorage?.getItem('oves-ble-allow-non-battery') === 'true';
+  } catch {
+    return false;
+  }
 }
 
 /**
