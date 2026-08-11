@@ -9,7 +9,7 @@ import { Fingerprint } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
-import { buildOdooHeaders } from '@/lib/odoo-api';
+import { buildOdooHeaders, getSubscriptionProducts } from '@/lib/odoo-api';
 import {
   IDENTIFY_CUSTOMER,
   parseIdentifyCustomerMetadata,
@@ -311,6 +311,41 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
   useEffect(() => {
     currentScreenRef.current = currentScreen;
   }, [currentScreen]);
+
+  // Display currency correction (Esther, 2026-08-10): the ABS
+  // service_plan_data.currency said "USD" for an account whose plans Odoo
+  // prices in CFA, so the Activity feed and Total-spent tile showed USD while
+  // the Top-Up plan list showed CFA on the same phone. The top-up modal
+  // already established the rule for exactly this class of bug: the currency
+  // Odoo charges in is the one we display. Apply that rule app-wide - fetch
+  // one product and let its currency override the ABS value. On any failure
+  // the ABS currency stands, so this can only ever converge the two screens.
+  const odooCurrencyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken_rider');
+        const res = await getSubscriptionProducts(1, 1, token || undefined);
+        const cur = res.data?.products?.[0]?.currency_name?.trim();
+        if (!cancelled && cur) {
+          // Remember it: identifyCustomer can resolve after this fetch and
+          // would otherwise put the ABS value straight back.
+          odooCurrencyRef.current = cur;
+          setCurrency((prev) => {
+            if (prev && prev !== cur) {
+              console.warn('[RIDER] Display currency corrected from plan pricing:', prev, '->', cur);
+            }
+            return cur;
+          });
+        }
+      } catch {
+        // Odoo unreachable - keep the ABS-derived currency rather than none.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -632,7 +667,9 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
 
     setBalance(cached.balance);
     setEnergyKwh(cached.energyKwh || 0);
-    setCurrency(cached.currency);
+    // Odoo plan pricing wins over the cached ABS currency (see the display
+    // currency correction effect above).
+    setCurrency(odooCurrencyRef.current || cached.currency);
     setEnergyServiceId(cached.energyServiceId || null);
     setBike((prev) => ({
       ...prev,
@@ -799,7 +836,10 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
       // Update balance with real energy value data
       setBalance(energyValue);
       setEnergyKwh(energyRemaining);
-      setCurrency(billingCurrency);
+      // Odoo plan pricing wins over the ABS billing currency when both are
+      // known - identifyCustomer may resolve after the plan fetch, and must
+      // not put a mismatched currency back on screen.
+      setCurrency(odooCurrencyRef.current || billingCurrency);
       // Remember the customer's actual energy service id so top-ups credit the
       // real service instance, not the plan template's placeholder id.
       setEnergyServiceId(energyServiceState?.service_id || null);
