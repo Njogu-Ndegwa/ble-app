@@ -4,8 +4,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { FlowBleScanState } from '@/lib/hooks/ble';
 import { useI18n } from '@/i18n';
 
-// Connection process typically takes 25-40 seconds, countdown from 60s
-const COUNTDOWN_START_SECONDS = 60;
+// Measured on device (30-rep benchmark, 2026-08-07): tap→data p50 7.4s, p90 7.8s,
+// worst 8.1s. When the peripheral rejects the first connect attempt the native
+// layer retries on a 20s timeout, so a genuinely-recovering attempt can run
+// ~45s. Hence: tell the user 8s, flag "longer than usual" at 12s, and only
+// force-close at 45s when retry hope is truly gone.
+const EXPECTED_SECONDS = 8;
+const SLOW_THRESHOLD_SECONDS = 12;
+const HARD_STOP_SECONDS = 45;
+
+// One continuous 0→100 scale for the whole operation - the bar must never fill
+// and restart, and never move backwards. Segment boundaries are proportional to
+// the measured duration of each phase (connect+enumerate ≈ 5.8s of 7.4s, reads
+// ≈ 1.7s), so the bar's speed matches what is actually happening.
+const SEG_CONNECT_END = 75;  // link + service enumeration
+const SEG_ATT_END = 90;      // battery ID read
+const SEG_DTA_END = 99;      // energy read; 100 only on real completion
 
 export interface BleProgressModalProps {
   /** BLE scan state from useFlowBatteryScan hook */
@@ -27,7 +41,7 @@ export interface BleProgressModalProps {
  * - Connection progress bar and percentage
  * - Step indicators (Scan → Connect → Read)
  * - Status messages for each phase
- * - 60 second countdown timer
+ * - Continuous milestone-eased progress with an honest time expectation
  * 
  * The modal automatically closes after 60 seconds or when connection completes.
  * No secondary "retry" modals - it just closes cleanly.
@@ -40,12 +54,18 @@ export function BleProgressModal({
   onCancel,
 }: BleProgressModalProps) {
   const { t } = useI18n();
-  
-  // Countdown timer state
-  const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
+
+  // Elapsed seconds since this attempt started (drives copy + hard stop)
+  const [elapsed, setElapsed] = useState(0);
   // Track if we already triggered timeout cancel to prevent multiple calls
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const startTimeRef = useRef<number | null>(null);
+
+  // Continuous display progress. Eases toward the current phase's segment cap
+  // so the bar is always visibly moving, and jumps forward when a real
+  // milestone lands. Monotonic by construction: we only ever take max().
+  const [displayProgress, setDisplayProgress] = useState(0);
+  const displayProgressRef = useRef(0);
   
   // Track the battery ID to detect when a NEW connection starts
   // This is used to reset timer state when scanning a new battery
@@ -55,7 +75,30 @@ export function BleProgressModal({
   // ONLY show when actively connecting/reading - nothing else
   // When connection ends (success, failure, timeout), modal just closes. No second modal ever.
   const isActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
-  const isModalVisible = isActive;
+
+  // Completion beat: when the operation finishes successfully the bar snaps to
+  // 100% and holds for a moment before the modal closes. Without this the modal
+  // unmounts at ~90% and the operator reads the vanishing bar as "went back" /
+  // "never finished" - the exact complaint that prompted the continuous bar.
+  const [justCompleted, setJustCompleted] = useState(false);
+  const wasActiveRef = useRef(false);
+  useEffect(() => {
+    if (isActive) {
+      wasActiveRef.current = true;
+      return;
+    }
+    // Only beat on a real completion: we were mid-operation, nothing failed,
+    // and the bar had genuinely progressed.
+    if (wasActiveRef.current && !bleScanState.connectionFailed && displayProgressRef.current > 10) {
+      wasActiveRef.current = false;
+      setJustCompleted(true);
+      const t = setTimeout(() => setJustCompleted(false), 650);
+      return () => clearTimeout(t);
+    }
+    wasActiveRef.current = false;
+  }, [isActive, bleScanState.connectionFailed]);
+
+  const isModalVisible = isActive || justCompleted;
   
   // CRITICAL FIX: Reset timer state when pendingBatteryId changes to a NEW value
   // This handles the case where user scans a new battery immediately after timeout
@@ -63,51 +106,96 @@ export function BleProgressModal({
   useEffect(() => {
     // Detect when a new battery is being scanned
     if (pendingBatteryId && pendingBatteryId !== lastBatteryIdRef.current) {
-      // New battery detected - reset all timer state for fresh countdown
+      // New battery detected - reset all timer state for a fresh attempt
       startTimeRef.current = null;
-      setCountdown(COUNTDOWN_START_SECONDS);
+      setElapsed(0);
       setHasTimedOut(false);
+      displayProgressRef.current = 0;
+      setDisplayProgress(0);
       lastBatteryIdRef.current = pendingBatteryId;
     } else if (!pendingBatteryId && lastBatteryIdRef.current !== null) {
       // Battery cleared (connection completed/cancelled) - reset tracking
       lastBatteryIdRef.current = null;
     }
   }, [pendingBatteryId]);
-  
+
   // Reset all state when modal closes
   useEffect(() => {
     if (!isModalVisible) {
       startTimeRef.current = null;
-      setCountdown(COUNTDOWN_START_SECONDS);
+      setElapsed(0);
       setHasTimedOut(false);
+      displayProgressRef.current = 0;
+      setDisplayProgress(0);
     }
   }, [isModalVisible]);
+
+  // Drive the continuous bar. Real milestones set a floor; between milestones
+  // the bar eases toward (but never reaches) the current segment's cap, so it
+  // keeps moving during the ~5s the phone spends enumerating the battery's
+  // attribute table - the phase that used to show a frozen 0%.
+  const segmentKeyRef = useRef('');
+  const segmentStartRef = useRef(0);
+  useEffect(() => {
+    if (!isActive) return;
+    const tick = setInterval(() => {
+      if (startTimeRef.current === null) return;
+
+      const reading = bleScanState.isReadingEnergy || bleScanState.isReadingService;
+      const phase = bleScanState.readingPhase;
+
+      // Segment = [floor reached by real milestones, cap it may ease toward].
+      // tau is roughly how long the segment takes on device; easing closes
+      // ~63% of the remaining gap per tau, so the bar slows as it nears the
+      // cap but never parks.
+      let key = 'connect';
+      let floor = 0;
+      let cap = SEG_CONNECT_END;
+      let tau = 3.0;
+      if (reading) {
+        if (phase === 'dta') { key = 'dta'; floor = SEG_ATT_END; cap = SEG_DTA_END; tau = 0.9; }
+        else { key = 'att'; floor = SEG_CONNECT_END; cap = SEG_ATT_END; tau = 0.9; }
+      }
+
+      // Easing runs on time-in-segment, not time-since-tap, so each phase
+      // animates its own stretch of the bar instead of snapping to its cap.
+      if (segmentKeyRef.current !== key) {
+        segmentKeyRef.current = key;
+        segmentStartRef.current = Date.now();
+      }
+      const inSeg = (Date.now() - segmentStartRef.current) / 1000;
+
+      const eased = floor + (cap - floor) * (1 - Math.exp(-inSeg / tau));
+      const next = Math.max(displayProgressRef.current, Math.min(cap, eased), floor);
+      displayProgressRef.current = next;
+      setDisplayProgress(next);
+    }, 120);
+    return () => clearInterval(tick);
+  }, [isActive, bleScanState.isReadingEnergy, bleScanState.isReadingService, bleScanState.readingPhase]);
   
-  // Start/continue countdown when modal is active
+  // Elapsed-time clock while the modal is active. One clock covers all stages
+  // (Scan → Connect → Read) without resetting.
   useEffect(() => {
     if (isActive && !bleScanState.connectionFailed) {
-      // Start countdown only when first becoming active in this session
-      // The 60s countdown covers ALL stages (Scan → Connect → Read) without resetting
       if (startTimeRef.current === null) {
         startTimeRef.current = Date.now();
-        setCountdown(COUNTDOWN_START_SECONDS);
+        setElapsed(0);
         setHasTimedOut(false);
       }
-      
+
       const timer = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
-        const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
-        setCountdown(remaining);
-        
-        // When countdown reaches 0, automatically cancel and close the modal
-        // Pass force=true to ensure cancellation happens even if reading is in progress
-        // This prevents the modal from hanging when DTA reading gets stuck
-        if (remaining <= 0 && !hasTimedOut) {
+        const sec = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
+        setElapsed(sec);
+
+        // Hard stop: past this point even a native 20s connect retry has had
+        // time to succeed twice. Force cancel so a stuck read can't hold the
+        // modal open forever.
+        if (sec >= HARD_STOP_SECONDS && !hasTimedOut) {
           setHasTimedOut(true);
-          onCancel(true); // Force cancel - triggers cleanup even during stuck reads
+          onCancel(true);
         }
       }, 1000);
-      
+
       return () => clearInterval(timer);
     }
     // Note: We intentionally don't reset startTimeRef when isActive becomes false
@@ -137,17 +225,15 @@ export function BleProgressModal({
       }
       return 'Reading battery data...';
     }
-    if (bleScanState.connectionProgress >= 75) {
-      return 'Finalizing connection...';
+    // During connect the phone is walking the battery's attribute table; the
+    // old thresholds keyed off connectionProgress, which stays 0 for this
+    // entire phase, so operators only ever saw the first message. Key off the
+    // same clock the bar uses instead.
+    if (displayProgress >= 40) {
+      return 'Reading battery configuration...';
     }
-    if (bleScanState.connectionProgress >= 50) {
-      return 'Establishing secure connection...';
-    }
-    if (bleScanState.connectionProgress >= 25) {
-      return 'Authenticating with battery...';
-    }
-    if (bleScanState.connectionProgress >= 10) {
-      return 'Locating battery via Bluetooth...';
+    if (displayProgress >= 15) {
+      return 'Linked — preparing battery...';
     }
     return `Connecting to battery ${pendingBatteryId ? '...' + String(pendingBatteryId).slice(-6).toUpperCase() : ''}...`;
   };
@@ -242,34 +328,39 @@ export function BleProgressModal({
             </div>
           )}
 
-          {/* Progress Bar - Show from 0% when connecting starts for visual consistency */}
-          {!bleScanState.requiresBluetoothReset && 
+          {/* One continuous progress bar for the whole operation. Driven by
+              displayProgress: milestone floors + easing, monotonic, never
+              resets between phases. */}
+          {!bleScanState.requiresBluetoothReset &&
            (bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
             <div className="ble-progress-bar-container">
               <div className="ble-progress-bar-bg">
-                <div 
+                <div
                   className="ble-progress-bar-fill"
-                  style={{ width: `${bleScanState.connectionProgress}%` }}
+                  style={{ width: `${justCompleted ? 100 : displayProgress}%`, transition: 'width 200ms ease-out' }}
                 />
               </div>
               <div className="ble-progress-percent">
-                {bleScanState.connectionProgress}%
+                {justCompleted ? 100 : Math.round(displayProgress)}%
               </div>
             </div>
           )}
-          
-          {/* Countdown Timer - Show estimated time remaining */}
-          {!bleScanState.requiresBluetoothReset && 
+
+          {/* Expectation, not a fake countdown. Before 12s: the measured
+              typical duration. After 12s: acknowledge the delay and say what
+              is actually happening (the app is retrying), so a slow attempt
+              stops looking identical to a dead one. */}
+          {!bleScanState.requiresBluetoothReset &&
            !bleScanState.connectionFailed &&
            (bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
             <div className="ble-countdown-timer">
-              {countdown > 0 ? (
+              {elapsed < SLOW_THRESHOLD_SECONDS ? (
                 <span className="ble-countdown-text">
-                  Connection will complete in about <strong>{countdown}s</strong>
+                  Usually takes about <strong>{EXPECTED_SECONDS}s</strong>
                 </span>
               ) : (
                 <span className="ble-countdown-expired">
-                  Connection timed out...
+                  Taking longer than usual — still trying ({elapsed}s)
                 </span>
               )}
             </div>

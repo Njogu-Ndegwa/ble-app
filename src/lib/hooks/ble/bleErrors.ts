@@ -345,12 +345,12 @@ export function forceDisconnectAll(log?: (...args: unknown[]) => void): void {
   // Disconnect from each
   if (connectedMac) {
     logger('[BLE Cleanup] Disconnecting from connectedMac:', connectedMac);
-    window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
+    window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', connectedMac, () => {});
   }
   
   if (pendingMac && pendingMac !== connectedMac) {
     logger('[BLE Cleanup] Disconnecting from pendingMac:', pendingMac);
-    window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMac, () => {});
+    window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', pendingMac, () => {});
   }
   
   // Clear storage

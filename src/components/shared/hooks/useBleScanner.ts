@@ -265,7 +265,7 @@ export function useBleScanner(): UseBleScanner {
       
       const connectedMac = sessionStorage.getItem('connectedDeviceMac');
       if (connectedMac) {
-        window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
+        window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', connectedMac, () => {});
         sessionStorage.removeItem('connectedDeviceMac');
       }
     }
@@ -446,7 +446,7 @@ export function useBleScanner(): UseBleScanner {
               // Disconnect
               if (window.WebViewJavascriptBridge && pendingConnectionMacRef.current) {
                 window.WebViewJavascriptBridge.callHandler(
-                  'disconnectBle',
+                  'disconnBleByMacAddress',
                   pendingConnectionMacRef.current,
                   () => {}
                 );

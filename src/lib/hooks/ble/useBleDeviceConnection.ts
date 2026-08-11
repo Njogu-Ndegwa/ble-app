@@ -196,7 +196,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
     if (!mac || !window.WebViewJavascriptBridge) return;
 
     log('Disconnecting from:', mac);
-    window.WebViewJavascriptBridge.callHandler('disconnectBle', mac, () => {});
+    window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', mac, () => {});
     sessionStorage.removeItem('connectedDeviceMac');
     
     isConnectedRef.current = false;
@@ -220,7 +220,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
     clearAllTimeouts();
     
     if (window.WebViewJavascriptBridge && pendingMacRef.current) {
-      window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMacRef.current, () => {});
+      window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', pendingMacRef.current, () => {});
     }
     
     // Increment session to invalidate any pending callbacks from this cancelled attempt
@@ -279,7 +279,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
       if (bridge) {
         macsToDisconnect.forEach(mac => {
           log('Force disconnecting from:', mac);
-          bridge.callHandler('disconnectBle', mac, (resp: unknown) => {
+          bridge.callHandler('disconnBleByMacAddress', mac, (resp: unknown) => {
             log('Force disconnect response for', mac, ':', resp);
           });
         });
@@ -338,7 +338,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
             log('Ignoring stale success callback from old session. Stored:', storedSession, 'Current:', currentSession);
             // Disconnect from this stale connection to clean up native layer
             if (window.WebViewJavascriptBridge) {
-              window.WebViewJavascriptBridge.callHandler('disconnectBle', macAddress, () => {});
+              window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', macAddress, () => {});
             }
             resp(macAddress);
             return;
@@ -350,7 +350,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
             log('Ignoring success callback for unexpected MAC:', macAddress, 'Expected:', expectedMac);
             // Disconnect from this unexpected connection
             if (window.WebViewJavascriptBridge) {
-              window.WebViewJavascriptBridge.callHandler('disconnectBle', macAddress, () => {});
+              window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', macAddress, () => {});
             }
             resp(macAddress);
             return;
@@ -446,7 +446,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
           const failedMac = pendingMacRef.current;
           if (failedMac && window.WebViewJavascriptBridge) {
             log('Force disconnecting from failed MAC:', failedMac);
-            window.WebViewJavascriptBridge.callHandler('disconnectBle', failedMac, () => {});
+            window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', failedMac, () => {});
           }
           
           // Also clear any other pending MACs in sessionStorage

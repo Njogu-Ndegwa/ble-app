@@ -5,7 +5,7 @@
  * used across the Attendant and Sales Person workflows.
  * 
  * Usage:
- * import { ScannerArea, PaymentCollection, useBleScanner } from '@/components/shared';
+ * import { ScannerArea, PaymentCollection } from '@/components/shared';
  */
 
 // ============================================
@@ -27,8 +27,10 @@ export { default as InputModeToggle } from './InputModeToggle';
 export { default as BatteryCard, BatterySwapVisual } from './BatteryCard';
 export type { BatteryCardVariant } from './BatteryCard';
 
-export { default as BatteryScanBind, BatteryScanBindWithHook } from './BatteryScanBind';
-export type { BatteryScanMode } from './BatteryScanBind';
+// BatteryScanBind is deprecated and deliberately NOT exported: it carries its
+// own two-phase progress bar, which is exactly the fill-then-restart behaviour
+// the shared BleProgressModal replaced. No applet imports it. Use
+// BleProgressModal + useFlowBatteryScan (src/lib/hooks/ble) for any BLE flow.
 
 // ============================================
 // BATTERY INPUT COMPONENTS (Scan & Manual Selection)
@@ -116,7 +118,9 @@ export type { SessionsHistoryProps } from './SessionsHistory';
 // ============================================
 // HOOKS
 // ============================================
-export { default as useBleScanner, useBleScanner as useBleScannerHook } from './hooks/useBleScanner';
+// useBleScanner (legacy) is deprecated and NOT exported - it re-implements
+// scanning without the stale-link release or the dead-bridge watchdog. Use
+// useBleDeviceScanner / useFlowBatteryScan from src/lib/hooks/ble instead.
 
 // Re-export modular BLE hooks from lib/hooks/ble
 export { 
@@ -140,4 +144,5 @@ export {
 } from '@/lib/hooks/ble';
 
 // Legacy alias for backwards compatibility
-export { useBleConnection } from '@/lib/hooks/useBleConnection';
+// useBleConnection (legacy) is deprecated and NOT exported - same reason as
+// useBleScanner above. Use useBleDeviceConnection from src/lib/hooks/ble.

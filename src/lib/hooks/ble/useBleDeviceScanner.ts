@@ -105,8 +105,35 @@ export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
     }
 
     log('Starting BLE scan');
-    window.WebViewJavascriptBridge.callHandler('startBleScan', '', () => {});
-    
+
+    // Dead-bridge watchdog. The native side ACKs startBleScan within a few
+    // milliseconds; when the ACK never arrives, the JS->native channel itself
+    // is gone (its signalling iframe was removed during hydration), and every
+    // BLE call from this page will silently hang forever. The user-visible
+    // symptom is an eternally-empty device list that only an app restart
+    // "fixes". A reload rebuilds the bridge, so do that for the user - once:
+    // the sessionStorage stamp stops a broken page from reload-looping.
+    let acked = false;
+    const watchdog = setTimeout(() => {
+      if (acked) return;
+      log('startBleScan never ACKed - bridge is dead');
+      try {
+        const last = Number(sessionStorage.getItem('bleBridgeReloadAt') || 0);
+        if (Date.now() - last > 60_000) {
+          sessionStorage.setItem('bleBridgeReloadAt', String(Date.now()));
+          window.location.reload();
+          return;
+        }
+      } catch {
+        // fall through to the error state below
+      }
+      setScanState(prev => ({ ...prev, isScanning: false, error: 'Bluetooth not available' }));
+    }, 3000);
+    window.WebViewJavascriptBridge.callHandler('startBleScan', '', () => {
+      acked = true;
+      clearTimeout(watchdog);
+    });
+
     setScanState(prev => ({
       ...prev,
       isScanning: true,

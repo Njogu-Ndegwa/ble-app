@@ -428,8 +428,14 @@ const WAITING_TIPS = [
   'Reading battery data requires loading device information',
 ];
 
-// Countdown timer constants
-const COUNTDOWN_START_SECONDS = 60;
+// Countdown timer constants.
+// Measured on device (30-rep benchmark): a successful read is p50 7.4s, worst
+// 8.1s. A native connect retry costs 20s, so 45s covers two full retries -
+// anything past that is genuinely dead. The old value (60s) meant a failure
+// held the screen for a minute.
+const COUNTDOWN_START_SECONDS = 45;
+const EXPECTED_SECONDS = 8;
+const SLOW_THRESHOLD_SECONDS = 12;
 
 // Phase-specific messages for better feedback
 // User-friendly labels: "ID" for ATT service, "Energy" for DTA service
@@ -592,11 +598,17 @@ function BleConnectionProgress({
         </div>
       )}
       
-      {/* Countdown timer */}
+      {/* Honest expectation instead of a countdown that promised 60s for an
+          8s operation. Past 12s, say what is happening - the app is retrying -
+          so a slow attempt stops looking identical to a dead one. */}
       <div className="connection-countdown">
-        {countdown > 0 ? (
+        {elapsedTime < SLOW_THRESHOLD_SECONDS ? (
           <span className="countdown-text">
-            Connection will complete in about <strong>{countdown}s</strong>
+            Usually takes about <strong>{EXPECTED_SECONDS}s</strong>
+          </span>
+        ) : countdown > 0 ? (
+          <span className="countdown-expired">
+            Taking longer than usual — still trying ({elapsedTime}s)
           </span>
         ) : (
           <span className="countdown-expired">

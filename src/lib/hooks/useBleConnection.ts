@@ -525,7 +525,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
       if (bridge) {
         macsToDisconnect.forEach(mac => {
           log('Force disconnecting from:', mac);
-          bridge.callHandler('disconnectBle', mac, (resp: unknown) => {
+          bridge.callHandler('disconnBleByMacAddress', mac, (resp: unknown) => {
             log('Force disconnect response for', mac, ':', resp);
           });
         });
@@ -683,7 +683,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
             }));
             
             if (window.WebViewJavascriptBridge) {
-              window.WebViewJavascriptBridge.callHandler('disconnectBle', macAddress, () => {});
+              window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', macAddress, () => {});
             }
             
             toast.error('Could not read battery data. Please try scanning again.');
@@ -756,7 +756,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
           const failedMac = pendingConnectionMacRef.current;
           if (failedMac && window.WebViewJavascriptBridge) {
             log('Force disconnecting from failed MAC:', failedMac);
-            window.WebViewJavascriptBridge.callHandler('disconnectBle', failedMac, () => {});
+            window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', failedMac, () => {});
           }
           
           // Also clear any other pending MACs in sessionStorage
@@ -847,7 +847,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
                 
                 macsToDisconnect.forEach(mac => {
                   log('Force disconnecting from:', mac);
-                  window.WebViewJavascriptBridge?.callHandler('disconnectBle', mac, () => {});
+                  window.WebViewJavascriptBridge?.callHandler('disconnBleByMacAddress', mac, () => {});
                 });
                 
                 // Clear sessionStorage
@@ -896,7 +896,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
               // Disconnect helper
               const disconnect = () => {
                 if (window.WebViewJavascriptBridge && connectedMac) {
-                  window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
+                  window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', connectedMac, () => {});
                 }
                 setBleScanState(prev => ({
                   ...prev,
@@ -1063,7 +1063,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
           
           macsToDisconnect.forEach(mac => {
             log('Force disconnecting from:', mac);
-            window.WebViewJavascriptBridge?.callHandler('disconnectBle', mac, () => {});
+            window.WebViewJavascriptBridge?.callHandler('disconnBleByMacAddress', mac, () => {});
           });
           
           // Clear sessionStorage
@@ -1113,7 +1113,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
         window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
         const connectedMac = sessionStorage.getItem('connectedDeviceMac');
         if (connectedMac) {
-          window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
+          window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', connectedMac, () => {});
         }
       }
     };

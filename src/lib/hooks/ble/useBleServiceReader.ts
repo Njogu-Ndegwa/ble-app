@@ -129,7 +129,7 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
     // Also disconnect from current pending MAC
     if (pendingMacRef.current && window.WebViewJavascriptBridge) {
       log('Disconnecting from pending MAC:', pendingMacRef.current);
-      window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMacRef.current, () => {});
+      window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', pendingMacRef.current, () => {});
     }
     
     // Update state
@@ -411,7 +411,7 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
           // Also disconnect from pending MAC
           if (pendingMacRef.current && window.WebViewJavascriptBridge) {
             log('Disconnecting from pending MAC:', pendingMacRef.current);
-            window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMacRef.current, () => {});
+            window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', pendingMacRef.current, () => {});
           }
           
           const errorMessage = error?.message || 'Failed to read service data';

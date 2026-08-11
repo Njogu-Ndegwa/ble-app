@@ -58,6 +58,63 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('oves-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}try{if(sessionStorage.getItem('oves-splash-shown')==='true'){var s=document.createElement('style');s.textContent='#html-splash{display:none!important}';document.head.appendChild(s);}}catch(e){}})();`,
           }}
         />
+        {/*
+          Keep the native JS bridge alive.
+
+          The Android wrapper injects WebViewJavascriptBridge.js at onPageFinished.
+          That script appends a hidden <iframe> to document.documentElement and
+          signals native by setting iframe.src to a yy:// URL, which the WebView
+          intercepts in shouldOverrideUrlLoading. That iframe is the ONLY JS->native
+          channel.
+
+          Because the App Router root layout renders <html>, React owns
+          documentElement and hydration removes the iframe as an unexpected child.
+          The bridge object itself survives on window, and the injected script
+          starts with `if (window.WebViewJavascriptBridge) return;` - so native
+          re-injection is a permanent no-op. The bridge is then a corpse that looks
+          alive: every callHandler is queued against a detached iframe and its
+          callback never fires. On the BLE screens that shows up as an empty device
+          list, or "Connecting to Battery" stuck at 0% forever.
+
+          Whether the race is lost depends on whether hydration finishes after the
+          injection, so heavier routes (the applets) break far more often than the
+          launcher - and a direct load of an applet URL breaks nearly every time.
+
+          Re-attaching the same node restores the channel: the element keeps working
+          once it is back in the document, and native does not care who parented it.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{
+  var isBridgeFrame = function(n){
+    return n && n.tagName === 'IFRAME' && n.style && n.style.display === 'none' &&
+      (!n.src || n.src.indexOf('yy://') === 0);
+  };
+  var frame = null;
+  var reattach = function(){
+    try { if (frame && !frame.isConnected) document.documentElement.appendChild(frame); } catch(e){}
+  };
+  new MutationObserver(function(muts){
+    for (var i=0;i<muts.length;i++){
+      var removed = muts[i].removedNodes;
+      for (var j=0;j<removed.length;j++){
+        if (isBridgeFrame(removed[j])) { frame = removed[j]; reattach(); }
+      }
+    }
+  }).observe(document.documentElement, { childList: true });
+
+  // Re-appending during hydration is not enough on its own: React is still
+  // reconciling and simply removes it again, so whichever side acts last wins
+  // and the result is a coin flip. Keep re-checking until hydration has
+  // definitely settled, then stop - this must not run forever.
+  var until = Date.now() + 15000;
+  var tick = setInterval(function(){
+    reattach();
+    if (Date.now() > until) clearInterval(tick);
+  }, 250);
+}catch(e){}})();`,
+          }}
+        />
       </head>
       <body
         className={`${outfit.variable} ${dmMono.variable} antialiased`}

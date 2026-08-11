@@ -643,10 +643,32 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
    */
   const startScanning = useCallback(() => {
     log('Starting BLE scanning - full cleanup first for fresh scan');
-    
+
+    // Self-heal before scanning: a battery that is still connected does not
+    // advertise, so a GATT link left open by an interrupted flow (app killed
+    // mid-read, back-navigation during connect, a crash) makes that battery
+    // permanently invisible to this scan - the classic "it only works after I
+    // restart the app and toggle Bluetooth". The MAC of any live or pending
+    // connection survives in sessionStorage, so release it here, where we know
+    // no read is in flight (we are about to pick a device, not reading one).
+    // Native ignores the call if that MAC is not actually connected.
+    try {
+      const stale =
+        sessionStorage.getItem('connectedDeviceMac') ||
+        sessionStorage.getItem('pendingBleMac');
+      if (stale && window.WebViewJavascriptBridge) {
+        log('Releasing stale BLE link before scan:', stale);
+        window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', stale, () => {});
+        sessionStorage.removeItem('connectedDeviceMac');
+        sessionStorage.removeItem('pendingBleMac');
+      }
+    } catch {
+      // sessionStorage unavailable - nothing to heal
+    }
+
     // Full cleanup including clearing devices for fresh scan
     cleanupAllBleState(false);
-    
+
     // Start fresh scan
     scannerStartScan();
   }, [cleanupAllBleState, scannerStartScan, log]);
