@@ -209,6 +209,9 @@ export function BleProgressModal({
   }
 
   const getStatusMessage = () => {
+    if (justCompleted) {
+      return 'Battery data loaded';
+    }
     if (bleScanState.requiresBluetoothReset) {
       return 'The Bluetooth connection was lost. Please toggle Bluetooth to reset it.';
     }
@@ -278,7 +281,9 @@ export function BleProgressModal({
               )}
             </div>
             <div className="ble-progress-title">
-                {bleScanState.requiresBluetoothReset
+                {justCompleted
+                    ? 'Battery Read'
+                    : bleScanState.requiresBluetoothReset
                     ? 'Bluetooth Reset Required'
                     : (bleScanState.isReadingEnergy || bleScanState.isReadingService)
                     ? (bleScanState.readingPhase === 'att' 
@@ -355,8 +360,17 @@ export function BleProgressModal({
            (bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
             <div className="ble-countdown-timer">
               {elapsed < SLOW_THRESHOLD_SECONDS ? (
+                // Counts down from the measured typical duration, but floors at
+                // "almost there" instead of reaching 0. p90 is 8.4s and a cold
+                // connect can run 11.6s, so a countdown allowed to expire would
+                // break its promise on roughly every other slow attempt - the
+                // exact failure of the 60s countdown this replaced.
                 <span className="ble-countdown-text">
-                  Usually takes about <strong>{EXPECTED_SECONDS}s</strong>
+                  {EXPECTED_SECONDS - elapsed > 0 ? (
+                    <><strong>{EXPECTED_SECONDS - elapsed}s</strong> remaining</>
+                  ) : (
+                    <>almost there&hellip;</>
+                  )}
                 </span>
               ) : (
                 <span className="ble-countdown-expired">
@@ -380,15 +394,15 @@ export function BleProgressModal({
                 <div className="ble-step-dot" />
                 <span>Scan</span>
               </div>
-              <div className={`ble-step ${bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.isReadingService ? 'active' : ''} ${bleScanState.isReadingEnergy || bleScanState.isReadingService ? 'completed' : ''}`}>
+              <div className={`ble-step ${justCompleted || bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.isReadingService ? 'active' : ''} ${justCompleted || bleScanState.isReadingEnergy || bleScanState.isReadingService ? 'completed' : ''}`}>
                 <div className="ble-step-dot" />
                 <span>Connect</span>
               </div>
-              <div className={`ble-step ${(bleScanState.isReadingEnergy || bleScanState.isReadingService) && bleScanState.readingPhase !== 'idle' ? 'active' : ''} ${bleScanState.readingPhase === 'dta' ? 'completed' : ''}`}>
+              <div className={`ble-step ${justCompleted || ((bleScanState.isReadingEnergy || bleScanState.isReadingService) && bleScanState.readingPhase !== 'idle') ? 'active' : ''} ${justCompleted || bleScanState.readingPhase === 'dta' ? 'completed' : ''}`}>
                 <div className="ble-step-dot" />
                 <span>ID</span>
               </div>
-              <div className={`ble-step ${bleScanState.readingPhase === 'dta' ? 'active' : ''}`}>
+              <div className={`ble-step ${justCompleted || bleScanState.readingPhase === 'dta' ? 'active' : ''} ${justCompleted ? 'completed' : ''}`}>
                 <div className="ble-step-dot" />
                 <span>Energy</span>
               </div>

@@ -384,6 +384,20 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
 
     if (mac) connectionDisconnect(mac);
 
+    // Disarm the auto-connect machinery before handing the result upward.
+    //
+    // This used to only reset the *read* state, leaving the scan running and
+    // deviceFoundMatcherRef still armed. The battery we just finished with keeps
+    // advertising, so the very next advertisement re-fired connectToMatch and a
+    // whole second connect began - on the Review screen, after the success toast
+    // had already shown. The operator saw the progress sheet reappear from
+    // scratch ("Connecting to Battery", SCAN ticked, nothing else) and then
+    // vanish, which looks like the app losing its place.
+    deviceFoundMatcherRef.current = null;
+    clearMatchTimers();
+    isDeviceMatchingRef.current = false;
+    scannerStopScan();
+
     if (scanType === 'old_battery') {
       onOldBatteryReadRef.current?.(battery);
     } else if (scanType === 'new_battery') {
@@ -396,7 +410,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     setDtaData(null);
     isProcessingRef.current = false;
     return true;
-  }, [connectionDisconnect, log]);
+  }, [connectionDisconnect, clearMatchTimers, scannerStopScan, log]);
 
   // When connected, read the battery.
   //
