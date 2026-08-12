@@ -27,6 +27,7 @@ const MyDevicesDetailView = dynamic(
   { ssr: false, loading: detailLoading },
 );
 import { connBleByMacAddress, initServiceBleData, disconnBleByMacAddress } from "../../../utils";
+import { rememberBleLink, forgetBleLink, releaseStaleBleLink } from "@/lib/hooks/ble/bleLinkRegistry";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import BleDevicesNav, { type BleDevicesTab } from './components/BleDevicesNav';
@@ -282,7 +283,7 @@ const BleDevicesApp: React.FC = () => {
       });
     }
     setSelectedDevice(null);
-    sessionStorage.removeItem("connectedDeviceMac");
+    forgetBleLink();
     setConnectedDevice(null);
     setServiceAttrList([]);
     setAtrrList([]);
@@ -325,6 +326,9 @@ const BleDevicesApp: React.FC = () => {
       setIsConnecting(true);
       setConnectingDeviceId(macAddress);
       setProgress(0);
+      // Remember the link before native opens it, so a reload mid-connect can
+      // still be healed on the next scan.
+      rememberBleLink(macAddress);
       connBleByMacAddress(macAddress);
       connectTimeoutRef.current = setTimeout(() => {
         connectTimeoutRef.current = null;
@@ -695,6 +699,10 @@ const BleDevicesApp: React.FC = () => {
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
+      // A device we still hold a link to stops advertising, so it would be
+      // missing from this scan. Release anything left over from an earlier page
+      // load (deploy reload, interrupted connect) before scanning.
+      releaseStaleBleLink();
       window.WebViewJavascriptBridge.callHandler(
         "startBleScan",
         "",
