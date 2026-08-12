@@ -530,7 +530,7 @@ const AppContainer = () => {
       }
 
       if (connectedDeviceRef.current) {
-        bridge.callHandler('disconnectBle', connectedDeviceRef.current, () => { });
+        bridge.callHandler('disconnBleByMacAddress', connectedDeviceRef.current, () => { });
       }
 
       bridge.callHandler('stopBleScan', '', () => { });

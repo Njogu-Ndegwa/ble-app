@@ -535,7 +535,7 @@ const KeypadApp: React.FC = () => {
 
       if (connectedDeviceRef.current) {
         bridge.callHandler(
-          "disconnectBle",
+          "disconnBleByMacAddress",
           connectedDeviceRef.current,
           () => {}
         );
