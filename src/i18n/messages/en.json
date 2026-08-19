@@ -12,7 +12,7 @@
   "auth.appTitle": "OVES",
   "auth.appSubtitle": "Sign in to access your workspace",
   "auth.signInWithMicrosoft": "Sign in with Microsoft",
-  "auth.orSignInWith": "or sign in with email",
+  "auth.orSignInWith": "or sign in with Microsoft",
   "auth.noSignInRequired": "No sign-in required",
   "auth.skipToKeypad": "Just need the Keypad? Sign in to access it →",
   "auth.phoneNumber": "Phone Number",

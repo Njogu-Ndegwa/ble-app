@@ -12,7 +12,7 @@
   "auth.appTitle": "OVES",
   "auth.appSubtitle": "Connectez-vous pour accéder à votre espace de travail",
   "auth.signInWithMicrosoft": "Se connecter avec Microsoft",
-  "auth.orSignInWith": "ou se connecter par e-mail",
+  "auth.orSignInWith": "ou se connecter avec Microsoft",
   "auth.emailPlaceholder": "Adresse e-mail",
   "auth.passwordPlaceholder": "Mot de passe",
   "auth.signIn": "Se connecter",
