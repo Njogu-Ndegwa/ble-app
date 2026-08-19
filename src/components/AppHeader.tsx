@@ -242,7 +242,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
 
           {/* Right: active SA (when signed in), theme toggle, contextual actions or avatar */}
           <div className="flow-header-right">
-            {selectedSA && !onSignIn && (
+            {pathname !== '/signin' && selectedSA && !onSignIn && (
               <button
                 type="button"
                 className="app-header-sa-chip"
@@ -267,7 +267,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
                 <MoreVertical size={18} />
               </button>
             )}
-            {actions != null ? actions : onSignIn ? (
+            {pathname === '/signin' ? null : actions != null ? actions : onSignIn ? (
               <button
                 className="flow-header-lang"
                 onClick={onSignIn}
