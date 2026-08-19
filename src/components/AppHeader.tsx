@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { Globe, LogOut, RefreshCw, Layers, Menu, LogIn, ArrowLeft, MoreVertical } from 'lucide-react';
@@ -10,6 +10,7 @@ import {
   getOdooEmployee,
   getSelectedSA,
   clearSelectedSA,
+  isOdooEmployeeLoggedIn,
 } from '@/lib/ov-auth';
 import { clearAllAuth } from '@/lib/attendant-auth';
 
@@ -86,21 +87,17 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
   const overflowDropdownRef = useRef<HTMLDivElement>(null);
   const [overflowPos, setOverflowPos] = useState<{ top: number; right: number }>({ top: 0, right: 16 });
 
-  const employee = useMemo(() => {
-    if (typeof window === 'undefined') return null;
-    return getOdooEmployee();
-  }, []);
+  const [employee, setEmployee] = useState<ReturnType<typeof getOdooEmployee>>(null);
+  const [selectedSA, setSelectedSA] = useState<ReturnType<typeof getSelectedSA>>(null);
+  const [hasSession, setHasSession] = useState(false);
 
-  /**
-   * Re-read when routes change so the chip updates after SA selection / switch.
-   * pathname is an intentional trigger — the body doesn't read it but a route
-   * change is the signal that the underlying storage may have changed.
-   */
-  const selectedSA = useMemo(() => {
-    if (typeof window === 'undefined') return null;
-    return getSelectedSA();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setEmployee(getOdooEmployee());
+    setSelectedSA(getSelectedSA());
+    setHasSession(isOdooEmployeeLoggedIn());
   }, [pathname]);
+
+  const showAccountControls = hasSession && onSignIn === undefined;
 
   const handleBack = useCallback(() => {
     if (isNavigating) return;
@@ -242,7 +239,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
 
           {/* Right: active SA (when signed in), theme toggle, contextual actions or avatar */}
           <div className="flow-header-right">
-            {selectedSA && !onSignIn && (
+            {selectedSA && showAccountControls && (
               <button
                 type="button"
                 className="app-header-sa-chip"
@@ -277,7 +274,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
                 <LogIn size={14} />
                 <span className="flow-header-lang-label">{t('auth.signIn') || 'Sign In'}</span>
               </button>
-            ) : (
+            ) : showAccountControls ? (
               <button
                 ref={avatarBtnRef}
                 className="app-header-avatar-btn"
@@ -287,7 +284,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
               >
                 <span className="app-header-avatar-initial">{initial}</span>
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       </header>
