@@ -3185,9 +3185,14 @@ html.theme-transition *::after {
   position: absolute;
   top: -9px;
   right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
   font-size: 10px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 0 8px;
+  line-height: 1;
   border-radius: 99px;
   background: var(--accent-soft);
   color: var(--accent);
@@ -3411,15 +3416,20 @@ html.theme-transition *::after {
 
 .sa-card-badges {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 6px;
 }
 
 .sa-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
   font-size: 10px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 0 8px;
+  line-height: 1;
   border-radius: 99px;
   letter-spacing: 0.01em;
   text-transform: capitalize;
