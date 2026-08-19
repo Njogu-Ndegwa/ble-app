@@ -1,8 +1,14 @@
-import React from 'react';
-import { renderToString } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+// @vitest-environment jsdom
+
+import React, { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let hasSession = false;
+let root: Root | null = null;
+let container: HTMLDivElement | null = null;
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/signin',
@@ -10,7 +16,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/image', () => ({
-  default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => React.createElement('img', props),
+  default: ({ priority: _priority, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { priority?: boolean }) => React.createElement('img', props),
 }));
 
 vi.mock('@/i18n', () => ({
@@ -35,22 +41,36 @@ import AppHeader from '../AppHeader';
 describe('AppHeader account controls', () => {
   beforeEach(() => {
     hasSession = false;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
   });
 
-  it('uses the same account-control markup during server and browser hydration', () => {
-    const serverMarkup = renderToString(React.createElement(AppHeader));
+  afterEach(() => {
+    act(() => root?.unmount());
+    container?.remove();
+    root = null;
+    container = null;
+  });
 
+  it('hides stale workspace and avatar data after client effects run without a valid session', async () => {
+    await act(async () => {
+      root?.render(React.createElement(AppHeader));
+    });
+
+    expect(container?.textContent).not.toContain('Oves Togo');
+    expect(container?.querySelector('.app-header-avatar-btn')).toBeNull();
+    expect(container?.querySelector('[aria-label="Theme toggle"]')).not.toBeNull();
+  });
+
+  it('shows account controls after client effects confirm a valid session', async () => {
     hasSession = true;
-    const hydrationMarkup = renderToString(React.createElement(AppHeader));
 
-    expect(hydrationMarkup).toBe(serverMarkup);
-  });
+    await act(async () => {
+      root?.render(React.createElement(AppHeader));
+    });
 
-  it('hides stale workspace and avatar data on the signed-out sign-in page', () => {
-    const markup = renderToString(React.createElement(AppHeader));
-
-    expect(markup).not.toContain('Oves Togo');
-    expect(markup).not.toContain('app-header-avatar-btn');
-    expect(markup).toContain('Theme toggle');
+    expect(container?.textContent).toContain('Oves Togo');
+    expect(container?.querySelector('.app-header-avatar-btn')).not.toBeNull();
   });
 });
