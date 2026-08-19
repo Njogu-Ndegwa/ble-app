@@ -6,7 +6,7 @@ import { IdCard, Mail, HelpCircle, LogOut, ChevronRight, ArrowLeftRight, Buildin
 
 export interface WorkflowProfileProps {
   employee: {
-    id: string | number;
+    id?: string | number | null;
     name: string;
     email: string;
     phone?: string;
@@ -59,6 +59,14 @@ const ROLE_BADGE_CLASS: Record<string, string> = {
   agent: 'sa-badge-agent',
 };
 
+function hasEmployeeId(id: string | number | null | undefined): id is string | number {
+  if (id === null || id === undefined) return false;
+  if (typeof id === 'number') return true;
+
+  const normalized = id.trim();
+  return normalized !== '' && normalized.replace(/[\s./_-]/g, '').toLowerCase() !== 'na';
+}
+
 const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
   employee,
   onLogout,
@@ -82,6 +90,7 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
     : fallbackInitials;
 
   const idLabel = employeeIdLabel || t('profile.employeeId') || 'Employee ID';
+  const employeeId = employee?.id;
 
   return (
     <div className="flex flex-col flex-1 min-h-0 p-4 overflow-y-auto">
@@ -122,13 +131,15 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
         </div>
 
         {/* Employee ID */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border-subtle">
-          <IdCard size={18} className="text-text-muted flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-text-muted">{idLabel}</p>
-            <p className="text-sm font-medium text-text-primary">#{employee?.id || 'N/A'}</p>
+        {hasEmployeeId(employeeId) && (
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border-subtle">
+            <IdCard size={18} className="text-text-muted flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-text-muted">{idLabel}</p>
+              <p className="text-sm font-medium text-text-primary">#{employeeId}</p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Email */}
         {employee?.email && (

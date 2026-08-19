@@ -16,7 +16,7 @@ interface DeviceManagerProfileProps {
 }
 
 interface DeviceManagerEmployee {
-  id: string | number;
+  id?: string | number | null;
   name: string;
   email: string;
   phone?: string;
@@ -42,7 +42,7 @@ const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({ onLogout })
       if (raw) {
         const user = JSON.parse(raw);
         setEmployee({
-          id: user.id ?? 'N/A',
+          id: user.id,
           name: user.name ?? '',
           email: user.email ?? '',
           phone: user.phone ?? undefined,
