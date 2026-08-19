@@ -45,6 +45,7 @@ import { isChina } from './map/isChina';
 import {
   groupServiceActions,
   isEnergyServiceType,
+  isSwapCountServiceType,
   isTopUpPaymentType,
   isDepositPaymentType,
 } from './hooks/useRiderActivity';
@@ -55,6 +56,10 @@ import {
 } from './hooks/useRiderBattery';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import AppHeader from '@/components/AppHeader';
+import {
+  resolveActivationServiceMode,
+  type ActivationServiceMode,
+} from '@/lib/activation-service-mode';
 
 /**
  * Mount the Google Maps JS provider exactly once for the entire logged-in
@@ -85,7 +90,9 @@ const QRCodeModal = dynamic(() => import('./components/QRCodeModal'), { ssr: fal
 const ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY = 'activeSubscriptionCode_rider';
 
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
-const RIDER_IDENTIFICATION_CACHE_KEY = 'riderIdentificationCacheV1';
+// V2 stores the detected billing mode and bounded swap allowance. Discard V1,
+// which could hydrate a swap plan as a multi-million-kWh energy balance.
+const RIDER_IDENTIFICATION_CACHE_KEY = 'riderIdentificationCacheV2';
 const IDENTIFICATION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 // Stations + activity caches: short TTL so a stale list never lingers more
 // than a couple of minutes, but long enough that re-entering the home screen
@@ -93,7 +100,7 @@ const IDENTIFICATION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 const RIDER_STATIONS_CACHE_KEY = 'riderStationsCacheV1';
 // V2: cache shape gained `records` and the 'topup' item type; bumping the key
 // discards V1 entries whose swap rows were mis-grouped (duplicate rows bug).
-const RIDER_ACTIVITY_CACHE_KEY = 'riderActivityCacheV2';
+const RIDER_ACTIVITY_CACHE_KEY = 'riderActivityCacheV3';
 const STATIONS_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
 const ACTIVITY_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
 const LOAD_FAILSAFE_TIMEOUT_MS = 15000;
@@ -156,6 +163,7 @@ interface IdentificationCache {
   currency: string;
   /** Customer's actual energy service instance id, for top-ups. */
   energyServiceId?: string | null;
+  servicePlanMode: ActivationServiceMode;
   cachedAt: number;
 }
 
@@ -196,6 +204,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
   const { t } = useI18n();
   const { bridge } = useBridge();
   const lastStationsFleetKeyRef = useRef<string | null>(null);
+  const activeSubscriptionCodeRef = useRef<string | null>(null);
   const [fleetIds, setFleetIds] = useState<string[]>([]);
   // Monotonically-incrementing nonce that user-driven retries bump to force
   // the MQTT + GraphQL effects to re-run even when their other dependencies
@@ -235,6 +244,12 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
   // generic serviceId (e.g. "service-energy-togo-real") — is what a top-up must
   // credit, since we're topping up the service *on this customer*.
   const [energyServiceId, setEnergyServiceId] = useState<string | null>(null);
+  const [servicePlanMode, setServicePlanMode] = useState<ActivationServiceMode>({
+    kind: 'unsupported',
+    serviceId: null,
+    rate: 0,
+    isQuotaBased: false,
+  });
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   // Drives the Activity screen's refresh spinner (pull-to-refresh + post-top-up refetch).
   const [isActivityLoading, setIsActivityLoading] = useState(false);
@@ -671,6 +686,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
     // currency correction effect above).
     setCurrency(odooCurrencyRef.current || cached.currency);
     setEnergyServiceId(cached.energyServiceId || null);
+    setServicePlanMode(cached.servicePlanMode);
     setBike((prev) => ({
       ...prev,
       vehicleId: cached.vehicleId,
@@ -688,7 +704,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
     const keepLoading = options?.keepLoading ?? false;
     const startTime = performance.now();
     const loadingFailSafeTimer = window.setTimeout(() => {
-      if (!keepLoading) {
+      if (!keepLoading && activeSubscriptionCodeRef.current === planId) {
         console.warn('[PERF] â±ï¸ IdentifyCustomer timeout guard triggered, stopping bike loader');
         setIsLoadingBike(false);
       }
@@ -711,6 +727,11 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
         mutation: IDENTIFY_CUSTOMER,
         variables: { input },
       });
+
+      if (activeSubscriptionCodeRef.current !== planId) {
+        console.info('[RIDER] Ignoring stale identification response for:', planId);
+        return;
+      }
       
       const elapsed = Math.round(performance.now() - startTime);
       console.info(`[PERF] ðŸ†” IdentifyCustomer GraphQL - Response received in ${elapsed}ms`);
@@ -789,13 +810,29 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
       const energyServiceDef = service_bundle?.services?.find(
         (svc: any) => svc.serviceId === energyServiceState?.service_id
       );
-      const energyUnitPrice = energyServiceDef?.usageUnitPrice || 0;
+      const energyUnitPrice = Number(energyServiceDef?.usageUnitPrice || 0);
+      const serviceStatesWithPricing = serviceStates.map((service: any) =>
+        service.service_id === energyServiceState?.service_id
+          ? { ...service, usageUnitPrice: energyServiceDef?.usageUnitPrice }
+          : service,
+      );
+      const detectedServicePlanMode = resolveActivationServiceMode(
+        serviceStatesWithPricing,
+        energyUnitPrice,
+      );
 
       // Calculate energy remaining and monetary value (same formula as attendant)
       const energyQuota = energyServiceState?.quota || 0;
       const energyUsed = energyServiceState?.used || 0;
-      const energyRemaining = Math.round((energyQuota - energyUsed) * 100) / 100; // Round to 2dp
-      const energyValue = Math.round(energyRemaining * energyUnitPrice); // Monetary value
+      const rawEnergyRemaining = Math.round((energyQuota - energyUsed) * 100) / 100;
+      // The energy service on a swap-count plan is only a usage ledger. Do not
+      // expose its pseudo-unlimited quota as a rider balance.
+      const energyRemaining = detectedServicePlanMode.kind === 'energy-priced'
+        ? rawEnergyRemaining
+        : 0;
+      const energyValue = detectedServicePlanMode.kind === 'energy-priced'
+        ? Math.round(energyRemaining * energyUnitPrice)
+        : 0;
 
       // The customer's plan is the single source of currency. common_terms is
       // deliberately NOT consulted: it is a shared contract-terms document that
@@ -823,6 +860,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
         energyRemaining,
         energyValue,
         energyUnitPrice,
+        servicePlanMode: detectedServicePlanMode.kind,
         billingCurrency,
         assetAssignmentServiceFound: !!assetAssignmentService,
         assetAssignmentService: assetAssignmentService,
@@ -843,6 +881,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
       // Remember the customer's actual energy service id so top-ups credit the
       // real service instance, not the plan template's placeholder id.
       setEnergyServiceId(energyServiceState?.service_id || null);
+      setServicePlanMode(detectedServicePlanMode);
 
       // Update bike state with real data
       setBike((prev) => {
@@ -850,7 +889,9 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
           ...prev,
           vehicleId,
           currentBatteryId,
-          totalSwaps: Math.floor(totalSwaps), // Ensure it's an integer
+          totalSwaps: detectedServicePlanMode.kind === 'swap-count'
+            ? detectedServicePlanMode.usedSwaps
+            : Math.floor(totalSwaps),
           paymentState: paymentState || prev.paymentState,
         };
         const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
@@ -862,7 +903,9 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
         subscriptionCode: planId,
         vehicleId,
         currentBatteryId,
-        totalSwaps: Math.floor(totalSwaps || 0),
+        totalSwaps: detectedServicePlanMode.kind === 'swap-count'
+          ? detectedServicePlanMode.usedSwaps
+          : Math.floor(totalSwaps || 0),
         paymentState: paymentState || undefined,
         balance: energyValue,
         energyKwh: energyRemaining,
@@ -870,6 +913,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
         // cold start replays the USD/CFA mismatch until the Odoo fetch lands.
         currency: odooCurrencyRef.current || billingCurrency,
         energyServiceId: energyServiceState?.service_id || null,
+        servicePlanMode: detectedServicePlanMode,
         cachedAt: Date.now(),
       });
 
@@ -877,6 +921,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
       console.error('[RIDER] Error fetching customer identification data:', error);
     } finally {
       window.clearTimeout(loadingFailSafeTimer);
+      if (activeSubscriptionCodeRef.current !== planId) return;
       setIsBikeDataResolved(true);
       const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
       console.warn(`[PERF] âœ… BIKE LOADING COMPLETE - Setting isLoadingBike=false after ${totalElapsed}ms from data load start`);
@@ -929,6 +974,10 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
 
       if (response.ok) {
         const result = await response.json();
+        if (activeSubscriptionCodeRef.current !== subscriptionCode) {
+          console.info('[RIDER] Ignoring stale activity response for:', subscriptionCode);
+          return;
+        }
         const totalElapsed = Math.round(performance.now() - startTime);
         console.info(`[PERF] ðŸ“ ServicePlanActions GraphQL - Parsed in ${totalElapsed}ms`);
         console.info('[RIDER] ðŸ” RAW servicePlanActions response:', JSON.stringify(result.data, null, 2));
@@ -971,7 +1020,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                 type: isTopUp ? 'topup' : 'payment',
                 title: title,
                 subtitle: isDeposit
-                  ? t('rider.activationDepositDesc') || 'Energy credited with your first battery'
+                  ? t('rider.activationDepositDesc') || 'Plan activated with your first battery'
                   : action.paymentType || '',
                 amount: Math.abs(action.paymentAmount || 0),
                 currency: currency,
@@ -1006,7 +1055,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
 
             serviceGroups.forEach((group) => {
               const hasElec = group.some((g: any) => isEnergyServiceType(g.serviceType));
-              const hasSwap = group.some((g: any) => !isEnergyServiceType(g.serviceType));
+              const hasSwap = group.some((g: any) => isSwapCountServiceType(g.serviceType));
 
               const date = new Date(group[0].createdAt);
               const formattedDate = date.toISOString().split('T')[0];
@@ -1024,26 +1073,37 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                 createdAt: a.createdAt,
               });
 
-              if (hasElec && hasSwap && group.length === 2) {
+              if (hasElec && hasSwap) {
                 // Unified battery swap row — show energy, no price.
                 const elecAction = group.find((g: any) =>
                   isEnergyServiceType(g.serviceType)
                 )!;
+                const swapAction = group.find((g: any) =>
+                  isSwapCountServiceType(g.serviceType)
+                );
                 mappedActivities.push({
                   id: elecAction.serviceActionId || `swap-${Date.now()}`,
                   type: 'swap',
                   title: t('rider.batterySwap') || 'Battery Swap',
                   subtitle: t('rider.batterySwapTransaction') || 'Battery swap transaction',
                   energy: `${elecAction.serviceAmount || 0} kWh`,
+                  swapCount: Math.max(1, Math.floor(Number(swapAction?.serviceAmount) || 1)),
                   isPositive: false,
                   time: timeStr,
                   date: formattedDate,
-                  records: group.map(toRecord),
+                  records: group
+                    .filter((action: any) =>
+                      isEnergyServiceType(action.serviceType) ||
+                      isSwapCountServiceType(action.serviceType),
+                    )
+                    .map(toRecord),
                 });
               } else {
                 // Fallback: render each action individually.
                 group.forEach((action: any) => {
                   const isElec = isEnergyServiceType(action.serviceType);
+                  const isSwapCount = isSwapCountServiceType(action.serviceType);
+                  if (!isElec && !isSwapCount) return;
                   mappedActivities.push({
                     id: action.serviceActionId || `service-${Date.now()}`,
                     type: 'swap',
@@ -1053,6 +1113,8 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                     subtitle: isElec
                       ? `${action.serviceAmount || 0} kWh`
                       : t('rider.batterySwapTransaction') || 'Battery swap transaction',
+                    energy: isElec ? `${action.serviceAmount || 0} kWh` : undefined,
+                    swapCount: isSwapCount ? Math.max(1, Math.floor(Number(action.serviceAmount) || 1)) : undefined,
                     isPositive: false,
                     time: timeStr,
                     date: formattedDate,
@@ -1106,13 +1168,15 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
         }
       } else {
         console.error('GraphQL response not OK:', response.status);
-        setActivities([]);
+        if (activeSubscriptionCodeRef.current === subscriptionCode) setActivities([]);
       }
     } catch (error) {
       console.error('Error fetching activity data:', error);
-      setActivities([]);
+      if (activeSubscriptionCodeRef.current === subscriptionCode) setActivities([]);
     } finally {
-      setIsActivityLoading(false);
+      if (activeSubscriptionCodeRef.current === subscriptionCode) {
+        setIsActivityLoading(false);
+      }
     }
   };
 
@@ -1174,6 +1238,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
 
           if (!activeSubscription) {
             console.warn('No subscriptions available to activate');
+            activeSubscriptionCodeRef.current = null;
             setSubscription(null);
             setIsBikeDataResolved(true);
             setIsLoadingBike(false);
@@ -1182,6 +1247,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
           }
 
           const active = activeSubscription as Subscription;
+          activeSubscriptionCodeRef.current = active.subscription_code;
 
           try {
             localStorage.setItem(
@@ -1242,6 +1308,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
           }
         } else {
           console.warn('No subscriptions found in response');
+          activeSubscriptionCodeRef.current = null;
           setSubscription(null);
           setIsBikeDataResolved(true);
           setIsLoadingBike(false);
@@ -1249,6 +1316,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
         }
       } else {
         console.warn('[PERF] Subscriptions API returned non-OK status, stopping loaders');
+        activeSubscriptionCodeRef.current = null;
         setSubscription(null);
         setIsBikeDataResolved(true);
         setIsLoadingBike(false);
@@ -1259,6 +1327,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
       }
     } catch (error) {
       console.error('Error fetching subscription data:', error);
+      activeSubscriptionCodeRef.current = null;
       setSubscription(null);
       setIsBikeDataResolved(true);
       setIsLoadingBike(false);
@@ -1816,6 +1885,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
     if (sub.subscription_code === subscription?.subscription_code) {
       return;
     }
+    activeSubscriptionCodeRef.current = sub.subscription_code;
     setSubscription(sub);
     // Full reset for the new plan: wipe every per-asset field so nothing from
     // the previous plan lingers while fresh data loads. `vehicleId`, battery,
@@ -1845,6 +1915,12 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
     // Activity: clear immediately so a stale feed from the old plan can't show
     // on the Activity tab before the refetch lands.
     setActivities([]);
+    setBalance(0);
+    setEnergyKwh(0);
+    setEnergyServiceId(null);
+    setCurrency(sub.currency || '');
+    setServicePlanMode({ kind: 'unsupported', serviceId: null, rate: 0, isQuotaBased: false });
+    setShowTopUpModal(false);
     setIsBikeDataResolved(false);
     setIsLoadingBike(true);
     fetchActivityData(sub.subscription_code);
@@ -2451,6 +2527,12 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
               userName={customer?.name || t('common.guest')}
               balance={balance}
               energyKwh={energyKwh}
+              planMode={servicePlanMode.kind}
+              swapAllowance={servicePlanMode.kind === 'swap-count' ? {
+                total: servicePlanMode.totalSwaps,
+                used: servicePlanMode.usedSwaps,
+                remaining: servicePlanMode.remainingSwaps,
+              } : undefined}
               currency={currency}
               subscriptionCode={subscription?.subscription_code ?? null}
               bike={{
@@ -2481,7 +2563,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
               hasSubscription={!!subscription?.subscription_code}
               onRefreshStations={refetchStations}
               onShowQRCode={() => setShowQRModal(true)}
-              onShowEnergyTopUp={showTopUp ? () => setShowTopUpModal(true) : undefined}
+              onShowEnergyTopUp={showTopUp && servicePlanMode.kind === 'energy-priced' ? () => setShowTopUpModal(true) : undefined}
               onSelectStation={handleSelectStation}
               onViewAllStations={() => setCurrentScreen('stations')}
             />
@@ -2491,6 +2573,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
             <RiderActivity
               activities={activities}
               currency={currency}
+              planMode={servicePlanMode.kind}
               isLoading={isActivityLoading}
               onRefresh={() => {
                 if (subscription?.subscription_code) {
@@ -2563,6 +2646,12 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                 phone: customer?.phone || '',
                 balance: balance,
                 energyKwh: energyKwh,
+                planMode: servicePlanMode.kind,
+                swapAllowance: servicePlanMode.kind === 'swap-count' ? {
+                  total: servicePlanMode.totalSwaps,
+                  used: servicePlanMode.usedSwaps,
+                  remaining: servicePlanMode.remainingSwaps,
+                } : undefined,
                 currency: currency,
                 planName: subscription?.product_name || '',
                 planValidity: subscription?.next_cycle_date
@@ -2602,7 +2691,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
       />
 
       {/* Energy Top-Up Modal — omitted entirely in the Rider Basic variant */}
-      {showTopUp && (
+      {showTopUp && servicePlanMode.kind === 'energy-priced' && (
         <EnergyTopUpModal
           isOpen={showTopUpModal}
           onClose={() => setShowTopUpModal(false)}

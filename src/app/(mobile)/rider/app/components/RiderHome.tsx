@@ -47,6 +47,8 @@ interface RiderHomeProps {
   balance: number;
   /** Remaining energy in kWh — shown as the headline value of the balance row. */
   energyKwh?: number;
+  planMode?: "energy-priced" | "swap-count" | "unsupported";
+  swapAllowance?: { total: number; used: number; remaining: number };
   currency?: string;
   /** Active subscription code (e.g. SUB-XXXX). Shown in the bike card so the
    *  rider always knows which plan the displayed data belongs to. */
@@ -74,6 +76,8 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   userName,
   balance,
   energyKwh = 0,
+  planMode = "unsupported",
+  swapAllowance,
   currency = "",
   subscriptionCode,
   bike,
@@ -180,6 +184,22 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   const energyDisplay = energyKwh.toLocaleString(undefined, {
     maximumFractionDigits: 1,
   });
+  const isSwapCountPlan = planMode === "swap-count" && !!swapAllowance;
+  const swapTotal = swapAllowance?.total ?? 0;
+  const swapUsed = swapAllowance?.used ?? 0;
+  const swapsRemaining = swapAllowance?.remaining ?? 0;
+  const planIsEmpty = isSwapCountPlan
+    ? swapsRemaining === 0
+    : energyKwh === 0;
+  const planHeadline = isSwapCountPlan
+    ? swapsRemaining.toLocaleString()
+    : energyDisplay;
+  const planUnit = isSwapCountPlan
+    ? (t("rider.swaps") || "Swaps")
+    : "kWh";
+  const planSecondary = isSwapCountPlan
+    ? `${swapUsed} / ${swapTotal} ${t("rider.used") || "used"}`
+    : `≈ ${currency ? `${currency} ` : ""}${balance.toLocaleString()}`;
 
   // "Updated 5 min ago" stamp for the battery reading. Telemetry arrives over
   // the battery's GSM link, so honesty about age matters more than the number
@@ -228,17 +248,19 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         ? `${t("rider.battUpdated") || "updated"} ${battAge}`
         : null
     : null;
-  const energyAriaLabel = isLoadingBike
+  const planAriaLabel = isLoadingBike
     ? t("common.loading") || "Loading"
-    : `${t("rider.energyRemaining") || "Energy remaining"} ${energyKwh.toLocaleString(
-        undefined,
-        { maximumFractionDigits: 2 },
-      )} kWh`;
+    : isSwapCountPlan
+      ? `${t("rider.swapsRemaining") || "Swaps remaining"} ${swapsRemaining} ${t("rider.of") || "of"} ${swapTotal}`
+      : `${t("rider.energyRemaining") || "Energy remaining"} ${energyKwh.toLocaleString(
+          undefined,
+          { maximumFractionDigits: 2 },
+        )} kWh`;
   const gaugeStateClass = !hasSubscription
     ? "rh-gauge--locked"
     : isLoadingBike
       ? "rh-gauge--loading"
-      : energyKwh === 0 && battSoc == null
+      : planIsEmpty && battSoc == null
         ? "rh-gauge--empty"
         : "";
 
@@ -268,7 +290,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               ? t("rider.noSubscription") || "No active subscription"
               : batteryHero
                 ? `${t("rider.batteryCharge") || "Battery charge"} ${battSoc}%`
-                : energyAriaLabel
+                : planAriaLabel
           }
         >
           <svg className="rh-gauge__svg" viewBox="0 0 200 200" aria-hidden="true">
@@ -306,23 +328,24 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                   {t("rider.battery") || "Battery"}
                 </span>
                 {battSub && <span className="rh-gauge__sub">{battSub}</span>}
-                {energyKwh === 0 && (
+                {planIsEmpty && (
                   <span className="rh-gauge__caption">
-                    {t("rider.topUpToRide") || "Top up to ride"}
+                    {isSwapCountPlan
+                      ? (t("rider.renewPlanToSwap") || "Renew plan to swap")
+                      : (t("rider.topUpToRide") || "Top up to ride")}
                   </span>
                 )}
               </>
             ) : (
               <>
-                <span className="rh-gauge__value">{energyDisplay}</span>
-                <span className="rh-gauge__unit">kWh</span>
-                <span className="rh-gauge__sub">
-                  ≈ {currency ? `${currency} ` : ""}
-                  {balance.toLocaleString()}
-                </span>
-                {energyKwh === 0 && (
+                <span className="rh-gauge__value">{planHeadline}</span>
+                <span className="rh-gauge__unit">{planUnit}</span>
+                <span className="rh-gauge__sub">{planSecondary}</span>
+                {planIsEmpty && (
                   <span className="rh-gauge__caption">
-                    {t("rider.topUpToRide") || "Top up to ride"}
+                    {isSwapCountPlan
+                      ? (t("rider.renewPlanToSwap") || "Renew plan to swap")
+                      : (t("rider.topUpToRide") || "Top up to ride")}
                   </span>
                 )}
               </>
@@ -335,13 +358,22 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             battery → honest "no signal yet" (no fake numbers, ever). */}
         {batteryHero ? (
           <span className="rh-hero__chip">
-            {t("rider.planBalance") || "Plan balance"}{" "}
-            <b>{energyDisplay} kWh</b>
-            {" · "}
-            <b>
-              {currency ? `${currency} ` : ""}
-              {balance.toLocaleString()}
-            </b>
+            {isSwapCountPlan ? (
+              <>
+                {t("rider.swapsRemaining") || "Swaps remaining"}{" "}
+                <b>{swapsRemaining} / {swapTotal}</b>
+              </>
+            ) : (
+              <>
+                {t("rider.planBalance") || "Plan balance"}{" "}
+                <b>{energyDisplay} kWh</b>
+                {" · "}
+                <b>
+                  {currency ? `${currency} ` : ""}
+                  {balance.toLocaleString()}
+                </b>
+              </>
+            )}
           </span>
         ) : hasSubscription && !isLoadingBike && bike.currentBatteryId ? (
           <span className="rh-hero__chip rh-hero__chip--muted">
@@ -447,12 +479,18 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               </dd>
             </div>
             <div className="rh-bike__cell">
-              <dt>{t("rider.totalSwaps") || "Swaps"}</dt>
+              <dt>
+                {isSwapCountPlan
+                  ? (t("rider.swapsUsed") || "Swaps used")
+                  : (t("rider.totalSwaps") || "Swaps")}
+              </dt>
               <dd>
                 {isLoadingBike ? (
                   <span className="rider-skeleton rider-skeleton-value rider-skeleton-value-sm" />
                 ) : (
-                  bike.totalSwaps
+                  isSwapCountPlan
+                    ? `${swapUsed} / ${swapTotal}`
+                    : bike.totalSwaps
                 )}
               </dd>
             </div>

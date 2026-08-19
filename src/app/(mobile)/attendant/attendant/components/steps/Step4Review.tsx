@@ -3,6 +3,7 @@
 import React from 'react';
 import { useI18n } from '@/i18n';
 import { SwapData, CustomerData, getInitials, getBatteryClass } from '../types';
+import type { ActivationServiceMode } from '@/lib/activation-service-mode';
 
 interface Step4Props {
   swapData: SwapData;
@@ -19,16 +20,18 @@ interface Step4Props {
   onRefreshQuota?: () => void;
   /** Whether a manual refresh is currently in flight */
   isRefreshing?: boolean;
+  servicePlanMode?: ActivationServiceMode;
 }
 
-export default function Step4Review({ swapData, customerData, hasSufficientQuota = false, requireRiderTopUp = false, planTopUpOnBalance = false, onRefreshQuota, isRefreshing = false }: Step4Props) {
+export default function Step4Review({ swapData, customerData, hasSufficientQuota = false, requireRiderTopUp = false, planTopUpOnBalance = false, onRefreshQuota, isRefreshing = false, servicePlanMode }: Step4Props) {
   const { t } = useI18n();
+  const isSwapCountPlan = servicePlanMode?.kind === 'swap-count';
 
   // Round down the cost for display and payment decision - customers can't pay decimals
   const displayCost = Math.floor(swapData.cost);
 
   // Check if rounded cost is zero or negative (no payment needed regardless of quota status)
-  const isZeroCost = displayCost <= 0;
+  const isZeroCost = !isSwapCountPlan && displayCost <= 0;
 
   // Should skip payment: either has sufficient quota OR rounded cost is zero
   const shouldSkipPayment = hasSufficientQuota || isZeroCost;
@@ -42,7 +45,8 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   // new subscription plan (then Refresh to pick up the new quota). Unlike the
   // top-up-only flow, completion is still allowed downstream — this only changes
   // what the Review page displays.
-  const planTopUp = planTopUpOnBalance && !shouldSkipPayment && !topUpRequired;
+  const planTopUp = !shouldSkipPayment && !topUpRequired &&
+    (planTopUpOnBalance || isSwapCountPlan);
 
   // Whichever top-up variant is active, the payable amount is hidden and the cost
   // breakdown is replaced by an instructional notice + Refresh-quota button.
@@ -92,7 +96,9 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
                 : topUpRequired
                   ? (t('attendant.topUpNeeded') || 'Top-up needed')
                   : isQuotaBased
-                    ? (t('attendant.quotaAvailable') || 'Quota Available')
+                    ? (isSwapCountPlan
+                        ? (t('attendant.swapQuotaAvailable') || 'Swap allowance available')
+                        : (t('attendant.quotaAvailable') || 'Quota Available'))
                     : isZeroCostOnly
                       ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
                       : (t('attendant.customerPays') || 'Amount Due')}
@@ -110,7 +116,11 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
               <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
               </svg>
-              <span>{t('attendant.usingQuota') || 'Using Quota'}</span>
+              <span>
+                {isSwapCountPlan
+                  ? (t('attendant.oneSwapIncluded') || '1 swap included')
+                  : (t('attendant.usingQuota') || 'Using Quota')}
+              </span>
             </>
           ) : isZeroCostOnly ? (
             <>
@@ -141,7 +151,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           </div>
           <div className="battery-details">
             <span className="battery-energy">{oldBatteryKwh.toFixed(2)} kWh</span>
-            <span className="battery-value">{currency} {oldBatteryValue}</span>
+            {!isSwapCountPlan && <span className="battery-value">{currency} {oldBatteryValue}</span>}
             <span className="battery-id">{swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.shortId || '---'}</span>
           </div>
         </div>
@@ -167,7 +177,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           </div>
           <div className="battery-details">
             <span className="battery-energy">{newBatteryKwh.toFixed(2)} kWh</span>
-            <span className="battery-value">{currency} {newBatteryValue}</span>
+            {!isSwapCountPlan && <span className="battery-value">{currency} {newBatteryValue}</span>}
             <span className="battery-id">{swapData.newBattery?.actualBatteryId || swapData.newBattery?.shortId || '---'}</span>
           </div>
         </div>
@@ -183,7 +193,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
           {/* Hide the monetary value entirely whenever a top-up variant is active —
               the attendant must not see an exact payable amount. */}
-          {!hideAmount && (
+          {!hideAmount && !isSwapCountPlan && (
             <span className="energy-money">
               {currency} {grossEnergyCost.toFixed(2)}
             </span>
@@ -208,8 +218,14 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
               : (t('attendant.topUpRequiredDesc') || 'Ask the rider to top up in the Rider app, then tap Refresh.')}
           </p>
           <div className="topup-notice-short">
-            {t('attendant.topUpShortfall') || 'Top-up needed'}:{' '}
-            <strong>{swapData.chargeableEnergy.toFixed(2)} kWh</strong>
+            {planTopUp
+              ? (t('attendant.planAllowanceNeeded') || 'Plan allowance needed')
+              : (t('attendant.topUpShortfall') || 'Top-up needed')}:{' '}
+            <strong>
+              {isSwapCountPlan
+                ? (t('attendant.oneSwap') || '1 swap')
+                : `${swapData.chargeableEnergy.toFixed(2)} kWh`}
+            </strong>
           </div>
           <button
             type="button"
@@ -234,6 +250,31 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
             <span>{isRefreshing ? (t('attendant.refreshing') || 'Refreshing…') : (t('attendant.refreshQuota') || 'Refresh quota')}</span>
           </button>
         </div>
+      ) : (
+      isSwapCountPlan && servicePlanMode?.kind === 'swap-count' ? (
+      <div className="review-summary">
+        <div className="summary-header">
+          <span>{t('attendant.swapAllowance') || 'Swap allowance'}</span>
+          <span className="rate-badge">
+            {servicePlanMode.remainingSwaps} / {servicePlanMode.totalSwaps} {t('attendant.remaining') || 'remaining'}
+          </span>
+        </div>
+        <div className="summary-row calculation">
+          <span className="calc-label">{t('attendant.thisSwap') || 'This swap'}</span>
+          <span className="calc-formula"><strong>{t('attendant.oneSwap') || '1 swap'}</strong></span>
+        </div>
+        <div className="summary-row calculation quota">
+          <span className="calc-label">{t('attendant.remainingAfterSwap') || 'Remaining after swap'}</span>
+          <span className="calc-formula">
+            <strong>{Math.max(0, servicePlanMode.remainingSwaps - 1)} / {servicePlanMode.totalSwaps}</strong>
+          </span>
+        </div>
+        <div className="summary-divider" />
+        <div className="summary-row total">
+          <span className="calc-label">{t('attendant.coveredByPlan') || 'Covered by plan'}</span>
+          <span className="calc-total free">{t('attendant.includedInSubscription') || 'Included in subscription'}</span>
+        </div>
+      </div>
       ) : (
       /* Pricing Summary - Full Calculation Breakdown */
       <div className="review-summary">
@@ -307,6 +348,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           </div>
         )}
       </div>
+      )
       )}
 
       <style jsx>{`

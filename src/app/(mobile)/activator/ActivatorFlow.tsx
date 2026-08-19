@@ -20,6 +20,7 @@ import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
+import { resolveActivationServiceMode } from '@/lib/activation-service-mode';
 
 import type { OrderListItem } from '@/lib/odoo-api';
 import { resetPassword } from '@/lib/odoo-api';
@@ -760,21 +761,13 @@ export default function ActivatorFlow({
       toast.error(t('sales.waitingForPricing') || 'Please wait, fetching pricing...');
       return;
     }
-    if (!customerRate || customerRate <= 0) {
+    const activationService = resolveActivationServiceMode(customerServiceStates, customerRate);
+    if (activationService.kind === 'unsupported') {
       toast.error(t('sales.invalidPricing') || 'Invalid pricing data. Please tap "Fetch Pricing" to retry.');
       return;
     }
 
-    const energyService = customerServiceStates.find(
-      (service) => typeof service?.service_id === 'string' &&
-        (service.service_id.includes('service-energy') || service.service_id.includes('service-electricity'))
-    );
-    if (!energyService || !energyService.service_id) {
-      toast.error(t('sales.energyServiceNotFound') || 'Energy service not found. Please tap "Fetch Pricing" to retry.');
-      return;
-    }
-
-    const rate = customerRate;
+    const rate = activationService.rate;
     const paymentCalc = calculateSwapPayment({
       newBatteryEnergyWh: scannedBatteryPending.energy,
       oldBatteryEnergyWh: 0,
@@ -785,12 +778,15 @@ export default function ActivatorFlow({
     setComputedEnergyCost(paymentCalc.cost);
 
     if (paymentCalc.cost <= 0) {
-      console.info('[ActivatorFlow] Zero-cost activation (empty battery)', {
+      console.info('[ActivatorFlow] Zero-charge activation', {
         batteryEnergy: scannedBatteryPending.energy,
         energyDiff: paymentCalc.energyDiff,
         cost: paymentCalc.cost,
         rate,
-        note: 'payment_data will be omitted — no charge for empty battery',
+        serviceMode: activationService.kind,
+        note: activationService.kind === 'swap-count'
+          ? 'payment_data will be omitted — the subscription is billed by swap count'
+          : 'payment_data will be omitted — no charge for this battery',
       });
     }
 
@@ -812,13 +808,13 @@ export default function ActivatorFlow({
         currencySymbol: customerCurrencySymbol,
       },
       customerType: 'first-time',
-      serviceId: energyService.service_id,
+      serviceId: activationService.serviceId,
       actor: {
         type: 'attendant',
         id: `activator-${getSalesRoleUser()?.id || '001'}`,
         station: ACTIVATOR_STATION,
       },
-      isQuotaBased: false,
+      isQuotaBased: activationService.isQuotaBased,
       isZeroCostRounding: false,
     };
 

@@ -22,6 +22,7 @@ interface RiderActivityProps {
   isLoading?: boolean;
   onRefresh?: () => void;
   currency?: string;
+  planMode?: "energy-priced" | "swap-count" | "unsupported";
 }
 
 type FilterKey = "all" | "swap" | "payment" | "topup";
@@ -35,6 +36,7 @@ export default function RiderActivity({
   isLoading,
   onRefresh,
   currency,
+  planMode = "unsupported",
 }: RiderActivityProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
@@ -147,6 +149,7 @@ export default function RiderActivity({
       <RiderActivityDetail
         item={detail}
         currency={currency}
+        planMode={planMode}
         onBack={() => setDetail(null)}
       />
     );
@@ -188,6 +191,9 @@ export default function RiderActivity({
           </div>
           {items.map((a) => {
             const recordId = a.records?.[0]?.id || "";
+            const serviceMetric = a.type === "swap" && planMode === "swap-count"
+              ? t("rider.swapCountValue", { count: a.swapCount ?? 1 }) || `${a.swapCount ?? 1} swap`
+              : a.energy;
             return (
               <div
                 key={a.id}
@@ -228,9 +234,9 @@ export default function RiderActivity({
                     </div>
                   </div>
                   <div className="list-card-actions">
-                    {a.energy ? (
+                    {serviceMetric ? (
                       <span className="list-card-badge list-card-badge--default">
-                        {a.energy}
+                        {serviceMetric}
                       </span>
                     ) : a.amount !== undefined ? (
                       <span

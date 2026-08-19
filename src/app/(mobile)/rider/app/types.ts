@@ -98,6 +98,8 @@ export interface RiderActivityItem {
   date: string;
   /** Energy info (e.g. "3.5 kWh") to show instead of a price badge on swap rows. */
   energy?: string;
+  /** Number of allowance units consumed by this swap (normally 1). */
+  swapCount?: number;
   /** Underlying ABS action records — shown in the tap-to-open detail sheet. */
   records?: RiderActivityRecord[];
 }

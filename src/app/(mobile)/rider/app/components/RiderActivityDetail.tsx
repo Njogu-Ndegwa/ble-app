@@ -10,12 +10,13 @@ import {
   Check,
 } from "lucide-react";
 import { useI18n } from "@/i18n";
-import { isEnergyServiceType } from "../hooks/useRiderActivity";
+import { isEnergyServiceType, isSwapCountServiceType } from "../hooks/useRiderActivity";
 import type { RiderActivityItem, RiderActivityRecord } from "../types";
 
 interface RiderActivityDetailProps {
   item: RiderActivityItem;
   currency?: string;
+  planMode?: "energy-priced" | "swap-count" | "unsupported";
   onBack: () => void;
 }
 
@@ -30,6 +31,7 @@ interface RiderActivityDetailProps {
 export default function RiderActivityDetail({
   item,
   currency,
+  planMode = "unsupported",
   onBack,
 }: RiderActivityDetailProps) {
   const { t } = useI18n();
@@ -76,7 +78,7 @@ export default function RiderActivityDetail({
     (r) => r.kind === "service" && isEnergyServiceType(r.type),
   );
   const swapCountRecord = records.find(
-    (r) => r.kind === "service" && !isEnergyServiceType(r.type),
+    (r) => r.kind === "service" && isSwapCountServiceType(r.type),
   );
 
   const cur = item.currency || currency || "";
@@ -94,11 +96,16 @@ export default function RiderActivityDetail({
       <CreditCard size={24} />
     );
 
-  // Swaps lead with the energy delivered; payments lead with the signed amount.
+  const swapCount = item.swapCount ?? Math.max(1, Math.floor(swapCountRecord?.amount || 1));
+
+  // Lead with the unit this plan sells. Keep both raw service records in the
+  // receipt below so support can still inspect energy and counter deductions.
   const heroValue =
     item.type === "swap"
-      ? item.energy ||
-        (energyRecord ? `${energyRecord.amount} kWh` : item.title)
+      ? planMode === "swap-count"
+        ? t("rider.swapCountValue", { count: swapCount }) || `${swapCount} swap`
+        : item.energy ||
+          (energyRecord ? `${energyRecord.amount} kWh` : item.title)
       : item.amount !== undefined
         ? moneyLabel(item.amount, true)
         : item.title;
@@ -114,14 +121,18 @@ export default function RiderActivityDetail({
       ? t("rider.activity.paymentRecord") || "Payment record"
       : isEnergyServiceType(r.type)
         ? t("rider.activity.energyRecord") || "Energy usage record"
-        : t("rider.activity.swapCountRecord") || "Swap counter record";
+        : isSwapCountServiceType(r.type)
+          ? t("rider.activity.swapCountRecord") || "Swap counter record"
+          : t("rider.activity.serviceRecord") || "Service record";
 
   const refAmount = (r: RiderActivityRecord) =>
     r.kind === "payment"
       ? moneyLabel(r.amount)
       : isEnergyServiceType(r.type)
         ? `${r.amount} kWh`
-        : `+${r.amount}`;
+        : isSwapCountServiceType(r.type)
+          ? `+${r.amount}`
+          : String(r.amount);
 
   return (
     <div className="rider-screen active rad-screen">

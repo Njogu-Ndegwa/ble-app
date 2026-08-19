@@ -16,6 +16,8 @@ interface ProfileData {
   balance: number;
   /** Remaining energy in kWh — shown as the headline of the balance stat. */
   energyKwh?: number;
+  planMode?: "energy-priced" | "swap-count" | "unsupported";
+  swapAllowance?: { total: number; used: number; remaining: number };
   currency?: string;
   planName: string;
   planValidity: string;
@@ -44,6 +46,10 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
   subscriptionStatus,
 }) => {
   const { t } = useI18n();
+  const isSwapCountPlan = profile.planMode === "swap-count" && !!profile.swapAllowance;
+  const swapTotal = profile.swapAllowance?.total ?? 0;
+  const swapUsed = profile.swapAllowance?.used ?? 0;
+  const swapsRemaining = profile.swapAllowance?.remaining ?? 0;
 
   const getPaymentStateClass = (paymentState: string): string => {
     switch (paymentState) {
@@ -117,7 +123,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
         <div className="profile-phone">{formatPhoneNumber(profile.phone)}</div>
       </div>
 
-      {/* Energy Service Card */}
+      {/* Active service card */}
       <div className="energy-service-card">
         {/* Header with icon, title and status */}
         <div className="energy-service-header">
@@ -128,7 +134,9 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
           </div>
           <div className="energy-service-title">
             <span className="energy-service-name">
-              {t("rider.energyService") || "Energy Service"}
+              {isSwapCountPlan
+                ? (t("rider.swapPlan") || "Swap Plan")
+                : (t("rider.energyService") || "Energy Service")}
             </span>
             <span
               className={`energy-service-status ${getPaymentStateClass(
@@ -154,7 +162,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
 
         {/* Stats - Stacked vertically with icons */}
         <div className="energy-service-stats-vertical">
-          {/* Energy Balance — kWh as the headline, monetary equivalent below. */}
+          {/* Display the unit the rider actually purchased: swaps or energy. */}
           <div className="energy-stat-row highlighted">
             <div className="energy-stat-icon">
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -163,16 +171,26 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </div>
             <div className="energy-stat-content">
               <div className="energy-stat-value">
-                {(profile.energyKwh ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {isSwapCountPlan
+                  ? swapsRemaining.toLocaleString()
+                  : (profile.energyKwh ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 <span style={{ fontSize: '0.65em', fontWeight: 500, marginLeft: 4, opacity: 0.75 }}>
-                  kWh
+                  {isSwapCountPlan ? (t("rider.swaps") || "swaps") : "kWh"}
                 </span>
               </div>
               <div className="energy-stat-label">
-                {t("rider.energyBalance") || "Energy Balance"}
-                <span style={{ marginLeft: 6, opacity: 0.8 }}>
-                  ≈ {profile.currency ? `${profile.currency} ` : ''}{profile.balance.toLocaleString()}
-                </span>
+                {isSwapCountPlan
+                  ? (t("rider.swapsRemaining") || "Swaps remaining")
+                  : (t("rider.energyBalance") || "Energy Balance")}
+                {isSwapCountPlan ? (
+                  <span style={{ marginLeft: 6, opacity: 0.8 }}>
+                    {swapUsed} / {swapTotal} {t("rider.used") || "used"}
+                  </span>
+                ) : (
+                  <span style={{ marginLeft: 6, opacity: 0.8 }}>
+                    ≈ {profile.currency ? `${profile.currency} ` : ''}{profile.balance.toLocaleString()}
+                  </span>
+                )}
               </div>
             </div>
           </div>

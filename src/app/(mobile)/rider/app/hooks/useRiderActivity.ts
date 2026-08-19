@@ -18,6 +18,11 @@ export function isEnergyServiceType(serviceType: unknown): boolean {
   return t.includes('electricity') || t.includes('energy');
 }
 
+export function isSwapCountServiceType(serviceType: unknown): boolean {
+  const t = String(serviceType || '').toLowerCase();
+  return t.includes('service-swap-count') || t.includes('service-swap_count');
+}
+
 /**
  * True when a payment action credits the customer (top-up / initial deposit).
  * ABS sends "TOP_UP" (with underscore) and "DEPOSIT"; normalize separators so

@@ -54,6 +54,7 @@ import { usePaymentCollection } from '@/lib/hooks/usePaymentCollection';
 import { PAYMENT } from '@/lib/constants';
 import { round } from '@/lib/utils';
 import { calculateSwapPayment } from '@/lib/swap-payment';
+import { resolveActivationServiceMode } from '@/lib/activation-service-mode';
 
 // Define WebViewJavascriptBridge type for window
 interface WebViewJavascriptBridge {
@@ -936,6 +937,11 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-swap-count')
   );
 
+  const servicePlanMode = useMemo(
+    () => resolveActivationServiceMode(serviceStates, swapData.rate),
+    [serviceStates, swapData.rate],
+  );
+
   // Get battery fleet service (to check current_asset for customer type)
   const batteryFleetService = serviceStates.find(
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-battery-fleet')
@@ -950,6 +956,17 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     // Only check quota/cost once we have battery data (Step 4 - Review)
     // Without new battery data, we can't determine if payment is needed
     if (!swapData.newBattery) {
+      return false;
+    }
+
+    // A bounded swap-count plan is billed in swaps, not kWh. Its accompanying
+    // energy service is an accounting meter with a zero rate and a deliberately
+    // huge quota, so it must not participate in the eligibility decision.
+    if (servicePlanMode.kind === 'swap-count') {
+      return servicePlanMode.remainingSwaps >= 1;
+    }
+
+    if (servicePlanMode.kind === 'unsupported') {
       return false;
     }
     
@@ -1027,7 +1044,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     });
     
     return canSkipPayment;
-  }, [electricityService, swapCountService, swapData.energyDiff, swapData.cost, swapData.newBattery]);
+  }, [electricityService, servicePlanMode, swapCountService, swapData.energyDiff, swapData.cost, swapData.newBattery]);
 
   // ============================================
   // PAYMENT COLLECTION HOOK
@@ -1051,7 +1068,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     dynamicPlanId,
     customerType,
     attendantInfo,
-    electricityServiceId: electricityService?.service_id,
+    electricityServiceId: servicePlanMode.serviceId || electricityService?.service_id,
     // Pass session order ID - when provided, payment uses session update flow
     // instead of creating a separate payment request
     sessionOrderId,
@@ -1931,12 +1948,22 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       const roundedCost = Math.floor(swapData.cost);
 
       // Check if we should skip payment collection
-      const shouldSkipPayment = hasSufficientQuota || roundedCost <= 0;
+      const shouldSkipPayment = servicePlanMode.kind === 'swap-count'
+        ? hasSufficientQuota
+        : hasSufficientQuota || roundedCost <= 0;
 
       if (shouldSkipPayment) {
         const isZeroCostRounding = !hasSufficientQuota && roundedCost <= 0;
         // Delegate to hook's skipPayment function
         skipPayment(hasSufficientQuota, isZeroCostRounding);
+        return;
+      }
+
+      // An exhausted swap allowance cannot be converted into a zero-value cash
+      // payment. Keep the rider on Review, where they are asked to renew the
+      // subscription, and let Refresh pick up the new allowance.
+      if (servicePlanMode.kind === 'swap-count') {
+        await handleManualRefreshQuota();
         return;
       }
 
@@ -2011,7 +2038,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment, confirmPayment, hasSufficientQuota, swapData.cost, swapData.energyDiff, skipPayment, sessionOrderId, customerData?.name, saveSessionData, requireRiderTopUp, handleManualRefreshQuota, workflowMode]);
+  }, [advanceToStep, initiateOdooPayment, confirmPayment, hasSufficientQuota, servicePlanMode, swapData.cost, swapData.energyDiff, skipPayment, sessionOrderId, customerData?.name, saveSessionData, requireRiderTopUp, handleManualRefreshQuota, workflowMode]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -2181,7 +2208,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         handleNewSwap();
         break;
     }
-  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t, isReadOnlySession, workflowMode]);
+  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t, isReadOnlySession, workflowMode, customerType, advanceToStep, sessionOrderId]);
 
   // Render current step content
   const renderStepContent = () => {
@@ -2231,6 +2258,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
             swapData={swapData}
             customerData={customerData}
             hasSufficientQuota={hasSufficientQuota}
+            servicePlanMode={servicePlanMode}
             requireRiderTopUp={requireRiderTopUp}
             planTopUpOnBalance={workflowMode === 'manual-payment'}
             onRefreshQuota={handleManualRefreshQuota}
@@ -2525,6 +2553,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
           swapCost={swapData.cost}
           requireRiderTopUp={requireRiderTopUp}
           noPaymentStep={workflowMode === 'manual-payment'}
+          requiresPlanRenewal={servicePlanMode.kind === 'swap-count' && !hasSufficientQuota}
           isFirstTimeCustomer={customerType === 'first-time'}
           readOnly={isReadOnlySession}
         />
