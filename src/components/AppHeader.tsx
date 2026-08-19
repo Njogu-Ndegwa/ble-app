@@ -10,8 +10,10 @@ import {
   getOdooEmployee,
   getSelectedSA,
   clearSelectedSA,
+  isOdooEmployeeLoggedIn,
 } from '@/lib/ov-auth';
 import { clearAllAuth } from '@/lib/attendant-auth';
+import { getAccountControlVisibility } from '@/components/app-header-session';
 
 export interface OverflowMenuItem {
   /** Stable key for React. */
@@ -101,6 +103,12 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
     return getSelectedSA();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
+  const { showWorkspace, showAvatar } = getAccountControlVisibility({
+    hasSession: isOdooEmployeeLoggedIn(),
+    hasSelectedSA: selectedSA !== null,
+    hasSignInAction: onSignIn !== undefined,
+  });
 
   const handleBack = useCallback(() => {
     if (isNavigating) return;
@@ -242,7 +250,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
 
           {/* Right: active SA (when signed in), theme toggle, contextual actions or avatar */}
           <div className="flow-header-right">
-            {selectedSA && !onSignIn && (
+            {selectedSA && showWorkspace && (
               <button
                 type="button"
                 className="app-header-sa-chip"
@@ -277,7 +285,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
                 <LogIn size={14} />
                 <span className="flow-header-lang-label">{t('auth.signIn') || 'Sign In'}</span>
               </button>
-            ) : (
+            ) : showAvatar ? (
               <button
                 ref={avatarBtnRef}
                 className="app-header-avatar-btn"
@@ -287,7 +295,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
               >
                 <span className="app-header-avatar-initial">{initial}</span>
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       </header>
