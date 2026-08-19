@@ -66,20 +66,18 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
   roleIconSrc,
   roleLabel,
   employeeIdLabel,
-  fallbackInitials = '??',
   serviceAccount,
   onSwitchSA,
 }) => {
   const { t } = useI18n();
 
-  const initials = employee?.name
-    ? employee.name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .substring(0, 2)
-        .toUpperCase()
-    : fallbackInitials;
+  const displayName = employee?.name || t('common.guest') || 'Guest';
+  const initials = displayName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
 
   const idLabel = employeeIdLabel || t('profile.employeeId') || 'Employee ID';
 
@@ -91,7 +89,7 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
           {initials}
         </div>
         <h2 className="text-xl font-bold text-text-primary">
-          {employee?.name || t('common.guest') || 'Guest'}
+          {displayName}
         </h2>
         <p className="text-sm text-text-muted font-mono mt-1">
           {employee?.phone ? formatPhoneNumber(employee.phone) : employee?.email || ''}
